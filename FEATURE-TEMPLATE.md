@@ -1,36 +1,40 @@
-# Feature -> Asset Organization & Inventory
+# Feature -> Playtest Foundation + Overworld Entry
 
 ## Requirements
+
 ---
-- Organize all craftpix asset packs into a standardized, game-engine-ready folder structure
-- Create a comprehensive asset inventory document mapping each asset to its purpose in the game (tilesets, characters, enemies, objects)
-- Keep only PNG files in active game assets; archive source files (PSD, ASEPRITE) separately for future reference
-- Verify that core assets (overworld tileset, dungeon tileset, witchKitty character, enemy sprites) are correctly cataloged and accessible
-- Ensure folder structure supports easy asset loading in JavaScript (Phaser or similar)
-- Establish a clear separation between playable character assets (witchKitty only for now) and other collectible/NPC assets (calicoKitty archived or noted for future use)
+
+- Build a minimal JavaScript playtest environment for fast gameplay iteration.
+- Implement overworld movement for the player character using witchKitty assets.
+- Implement dungeon entry trigger from overworld into one dungeon test scene.
+- Keep combat, puzzle/QTE, and reward systems out of this feature and defer them to the next branch.
+- Keep this feature focused on mechanics only; story and narrative systems remain out of scope.
 
 ## Implementation Plan
 
-### ***Checkpoint 1: Folder Structure Setup***
-- [x] Create `/assets/` root directory with subdirectories: `characters/`, `enemies/`, `tilesets/`, `objects/`, `_source/`
-- [x] Migrate craftpix PNG files into appropriate subdirectories (e.g., PNG files from village tileset → `/assets/tilesets/overworld/`)
-- [x] Move all PSD, ASEPRITE, and Tiled files into `/assets/_source/` for archival
-- [x] Verify folder structure matches expected game engine load paths
-- **Test**: Confirm all asset folders exist and are free of duplicate/conflicting files
+### ***Checkpoint 1: Playtest Environment Foundation***
 
-### ***Checkpoint 2: Asset Inventory & Mapping Document***
-- [x] Create `ASSET-INVENTORY.md` documenting:
-  - Which asset packs are used (e.g., "Free Dungeon Asset Pack v1.0")
-  - Breakdown by game system (e.g., "overworld tilesets: 32x32 village tileset with 4 variations")
-  - Character assignments (witchKitty = main playable; calicoKitty = archived for Phase X)
-  - Enemy sprite sources (swordsman enemies, farm animals, etc.)
-  - Object mappings (decorations, boxes, houses, tents, shadows)
-- [x] Create a quick reference table: `| Asset Type | Location | Usage | Status |`
-- **Test**: Inventory document is complete and matches actual folder contents
+- [x] Initialize JavaScript test runtime (recommended: Vite + Phaser) in project structure.
+- [x] Add a boot scene and preload scene that load representative assets from [assets](assets).
+- [x] Add a dev start command and verify the game runs locally with hot reload.
+- [x] Document run steps in [README.md](README.md).
 
-### ***Checkpoint 3: Asset Verification & Cleanup***
-- [x] Load a sample of key assets (witchKitty sprites, dungeon tileset, swordsman enemy) in a test JavaScript environment to verify format/naming
-- [x] Remove any unused/duplicate asset files
-- [ ] Verify naming conventions are consistent (e.g., all lowercase, kebab-case or snake_case)
-- [x] Document any missing assets needed for Phase 2 (e.g., UI sprites, item icons)
-- **Test**: At least 5 key assets load successfully; no conflicts or missing files detected
+- **Test**: Game launches locally and renders a boot/playtest scene without missing asset errors.
+
+### ***Checkpoint 2: Overworld Movement + Dungeon Entry***
+
+- [x] Create an overworld test map scene with collision and camera follow.
+- [x] Add witchKitty movement controls (WASD/arrow keys).
+- [x] Add at least one dungeon entry trigger zone.
+- [x] Transition from overworld scene to dungeon scene on trigger.
+
+- **Test**: Player can move, collide with walls, and enter dungeon scene via trigger reliably.
+
+### ***Checkpoint 3: Vertical Slice A Validation + Handoff***
+
+- [x] Validate full loop for this scope: boot -> overworld movement -> dungeon entry.
+- [x] Confirm no missing asset references in startup and scene transitions.
+- [x] Record deferred systems for next branch: combat, puzzle/QTE, reward loop.
+- [x] Prepare short handoff notes for teammate integration touchpoints (AI/story remain isolated).
+
+- **Test**: Vertical Slice A runs end-to-end without blocking bugs.
