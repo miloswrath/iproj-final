@@ -40,7 +40,7 @@ Questline themes
 - Quests where the player feels supported right up until the consequences land.
 
 Behavior Rules
-Constant reassurance:
+Constant reassurance (EXAMPLES - USE VARIATION AND CONTEXTUAL AWARENESS):
 “You’ve got this.”
 “This is good for you.”
 Minimize danger:
