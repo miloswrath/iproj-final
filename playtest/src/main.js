@@ -4,6 +4,7 @@ import { BootScene } from './game/scenes/BootScene';
 import { PreloadScene } from './game/scenes/PreloadScene';
 import { OverworldScene } from './game/scenes/OverworldScene';
 import { DungeonScene } from './game/scenes/DungeonScene';
+import { CombatScene } from './game/scenes/CombatScene';
 
 const gameConfig = {
   type: Phaser.AUTO,
@@ -19,7 +20,7 @@ const gameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, PreloadScene, OverworldScene, DungeonScene],
+  scene: [BootScene, PreloadScene, OverworldScene, DungeonScene, CombatScene],
 };
 
 new Phaser.Game(gameConfig);

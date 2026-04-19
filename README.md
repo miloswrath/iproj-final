@@ -37,13 +37,25 @@ npm run build
 
 - Boot scene -> preload scene -> overworld test scene
 - Move player with WASD or arrow keys
-- Collide with static wall blockers in overworld
-- Enter highlighted dungeon gate zone and press E to transition scenes
-- Press Q in dungeon (or click Return to Overworld) to return
+- Enter highlighted dungeon gate zone and press E
+- In dungeon sandbox, press R to regenerate random layout
+- Find encounter marker and press E to enter combat
+- Combat actions: Attack (1) or Defend (2)
+- On victory, return to the same dungeon layout with encounter marked complete
+- Press Q in dungeon to return to overworld with completion status
+- On defeat, return directly to overworld with failed status
 
-## Out of Scope (Deferred to Next Branch)
+## Slice Test Steps
 
-- Combat system
+1. Enter dungeon from the overworld gate.
+2. Confirm the layout differs across multiple R regenerations.
+3. Confirm encounter marker is reachable from spawn in each generated layout.
+4. Start combat and use Attack for one run, Defend for at least one round in another run.
+5. Verify victory returns to dungeon with encounter disabled.
+6. Verify defeat returns to overworld with failed status text.
+
+## Out of Scope (Deferred)
+
 - Puzzle / QTE system
 - Reward loop
 - Story and narrative systems

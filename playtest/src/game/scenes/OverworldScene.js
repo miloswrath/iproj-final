@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 const WORLD_WIDTH = 1600;
 const WORLD_HEIGHT = 960;
 const PLAYER_SPEED = 180;
+const SPRINT_MULTIPLIER = 1.85;
 
 export class OverworldScene extends Phaser.Scene {
   constructor() {
@@ -10,6 +11,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   create(data) {
+    this.dungeonCompletionStatus = data?.dungeonCompletionStatus ?? null;
+
     this.add.tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 'overworld-tile').setOrigin(0);
 
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -38,9 +41,10 @@ export class OverworldScene extends Phaser.Scene {
 
     this.keys = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,S,A,D');
+    this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
 
-    this.add.text(16, 16, 'Overworld test: move with WASD/Arrows, press E at gate', {
+    this.add.text(16, 16, 'Overworld test: WASD/Arrows move, hold Shift sprint, E at gate', {
       fontFamily: 'monospace',
       fontSize: '16px',
       color: '#ffffff',
@@ -59,6 +63,23 @@ export class OverworldScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setVisible(false);
 
+    this.completionLabel = this.add
+      .text(16, 80, '', {
+        fontFamily: 'monospace',
+        fontSize: '16px',
+        color: '#fff7cc',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setVisible(false);
+
+    if (this.dungeonCompletionStatus === 'complete') {
+      this.completionLabel.setText('Dungeon status: encounter completed.').setVisible(true);
+    } else if (this.dungeonCompletionStatus === 'failed') {
+      this.completionLabel.setText('Dungeon status: defeated, try again.').setVisible(true);
+    }
+
     const marker = this.add.rectangle(1450, 840, 130, 130, 0x4a7f2d, 0.45);
     marker.setStrokeStyle(2, 0xd7f171, 0.95);
   }
@@ -71,7 +92,8 @@ export class OverworldScene extends Phaser.Scene {
 
     const dx = Number(right) - Number(left);
     const dy = Number(down) - Number(up);
-    const direction = new Phaser.Math.Vector2(dx, dy).normalize().scale(PLAYER_SPEED);
+    const speed = this.shiftKey.isDown ? PLAYER_SPEED * SPRINT_MULTIPLIER : PLAYER_SPEED;
+    const direction = new Phaser.Math.Vector2(dx, dy).normalize().scale(speed);
 
     this.player.setVelocity(direction.x || 0, direction.y || 0);
 
