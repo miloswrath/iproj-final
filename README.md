@@ -33,6 +33,27 @@ Run a production build from `playtest/`:
 npm run build
 ```
 
+## Sprint 2 Overworld Validation
+
+Use these steps for the handcrafted field -> city overworld baseline.
+
+1. Start playtest (`npm run dev`) and load overworld.
+2. Confirm HUD shows:
+- Ambient loops count <= 35
+- Traversal audit PASS
+3. Run 3 full overworld loops at normal speed:
+- Spawn outskirts -> city route -> dungeon gate -> backtrack
+4. Run 3 full loops while holding sprint where possible.
+5. Confirm gate marker and route landmarks are readable within 10 seconds from initial view.
+6. Confirm no hidden blocker interrupts critical route.
+7. Trigger dungeon entry with `E` and verify return-to-overworld behavior still works.
+
+Acceptance criteria:
+- Traversal audit reports PASS.
+- No stuck points in all 6 traversal loops.
+- Route/objective readability preserved after decor/ambient rendering.
+- Overworld rendering remains deterministic across scene reloads.
+
 ## Current Playtest Loop
 
 - Boot scene -> preload scene -> overworld test scene
