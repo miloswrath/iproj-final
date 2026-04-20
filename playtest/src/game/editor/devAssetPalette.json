@@ -1,0 +1,50 @@
+{
+  "groups": [
+    {
+      "id": "floors",
+      "label": "Floors",
+      "layer": "floor",
+      "scenes": ["overworld", "dungeon"],
+      "assets": [
+        { "id": "field-a", "key": "overworld-field-a", "label": "Field A" },
+        { "id": "path-a", "key": "overworld-path-a", "label": "Path A" },
+        { "id": "town-tile", "key": "overworld-town-tile", "label": "Town Tile" },
+        { "id": "water", "key": "overworld-water-tile", "label": "Water" }
+      ]
+    },
+    {
+      "id": "walls",
+      "label": "Walls",
+      "layer": "collision",
+      "scenes": ["overworld", "dungeon"],
+      "assets": [
+        { "id": "house-1", "key": "overworld-house-1", "label": "House 1" },
+        { "id": "house-2", "key": "overworld-house-2", "label": "House 2" },
+        { "id": "house-3", "key": "overworld-house-3", "label": "House 3" },
+        { "id": "house-4", "key": "overworld-house-4", "label": "House 4" }
+      ]
+    },
+    {
+      "id": "props",
+      "label": "Props",
+      "layer": "decor",
+      "scenes": ["overworld", "dungeon"],
+      "assets": [
+        { "id": "grass-1", "key": "overworld-grass-1", "label": "Grass 1" },
+        { "id": "grass-6", "key": "overworld-grass-6", "label": "Grass 6" },
+        { "id": "tent-1", "key": "overworld-tent-1", "label": "Tent 1" },
+        { "id": "stone-3", "key": "overworld-stone-3", "label": "Stone 3" }
+      ]
+    },
+    {
+      "id": "interactables",
+      "label": "Interactables",
+      "layer": "decor",
+      "scenes": ["overworld"],
+      "assets": [
+        { "id": "dungeon-entry", "key": "guild-hall-exterior", "label": "Dungeon Entry" },
+        { "id": "box-2", "key": "overworld-box-2", "label": "Supply Box" }
+      ]
+    }
+  ]
+}
