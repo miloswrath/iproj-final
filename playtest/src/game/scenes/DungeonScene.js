@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { DeveloperModeController } from '../editor/DeveloperModeController';
+import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
 
 const TILE_SIZE = 40;
 const TILE_SCALE = TILE_SIZE / 16;
@@ -74,6 +76,15 @@ export class DungeonScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.obstacles);
     this.addInstructionHud();
     this.updateEncounterUi();
+    this.devModeController = new DeveloperModeController(this, {
+      sceneLabel: 'Dungeon',
+      tileSize: TILE_SIZE,
+      cols: GRID_COLS,
+      rows: GRID_ROWS,
+      worldWidth: DUNGEON_WIDTH,
+      worldHeight: DUNGEON_HEIGHT,
+      registry: loadDevAssetRegistry('dungeon'),
+    });
   }
 
   createBackground() {
@@ -259,6 +270,14 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   update() {
+    const editorHasFocus = this.devModeController?.update() ?? false;
+    if (editorHasFocus) {
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      return;
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
       this.regenerateDungeon();
       return;

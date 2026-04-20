@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { createOverworldLayout, TileKinds } from '../overworld/overworldLayout';
+import { DeveloperModeController } from '../editor/DeveloperModeController';
+import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
 
 const PLAYER_SPEED = 180;
 const SPRINT_MULTIPLIER = 1.85;
@@ -60,6 +62,15 @@ export class OverworldScene extends Phaser.Scene {
     this.wasd = this.input.keyboard.addKeys('W,S,A,D');
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.devModeController = new DeveloperModeController(this, {
+      sceneLabel: 'Overworld',
+      tileSize: this.layout.tileSize,
+      cols: this.layout.cols,
+      rows: this.layout.rows,
+      worldWidth: this.layout.worldWidth,
+      worldHeight: this.layout.worldHeight,
+      registry: loadDevAssetRegistry('overworld'),
+    });
 
     this.add.text(16, 16, 'Overworld: outskirts -> town route, Shift sprint, E at gate', {
       fontFamily: 'monospace',
@@ -135,6 +146,15 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   update() {
+    const editorHasFocus = this.devModeController?.update() ?? false;
+    if (editorHasFocus) {
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
     const left = this.keys.left.isDown || this.wasd.A.isDown;
     const right = this.keys.right.isDown || this.wasd.D.isDown;
     const up = this.keys.up.isDown || this.wasd.W.isDown;
@@ -562,8 +582,9 @@ export class OverworldScene extends Phaser.Scene {
 
   createMiniMap() {
     this.miniMapCellPx = 2;
+    const viewportWidth = this.scale.width;
     this.miniMapOrigin = {
-      x: 960 - this.layout.cols * this.miniMapCellPx - 16,
+      x: viewportWidth - this.layout.cols * this.miniMapCellPx - 16,
       y: 16,
     };
 

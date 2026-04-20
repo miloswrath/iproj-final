@@ -9,8 +9,8 @@ import { CombatScene } from './game/scenes/CombatScene';
 const gameConfig = {
   type: Phaser.AUTO,
   parent: 'game-root',
-  width: 960,
-  height: 540,
+  width: 1280,
+  height: 720,
   pixelArt: true,
   backgroundColor: '#101418',
   physics: {

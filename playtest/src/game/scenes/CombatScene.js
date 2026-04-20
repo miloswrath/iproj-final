@@ -54,47 +54,70 @@ export class CombatScene extends Phaser.Scene {
       });
     }
 
-    this.enemySprite = this.add.sprite(700, 230, spriteKey, 0).setScale(config.scale);
+    this.enemySprite = this.add
+      .sprite(this.ui.enemyX, this.ui.enemyY, spriteKey, 0)
+      .setScale(config.scale);
     this.enemySprite.play(animKey);
   }
 
   drawPanel() {
-    this.add.rectangle(480, 270, 960, 540, 0x101018, 1);
-    this.add.rectangle(480, 270, 860, 430, 0x1d1f2e, 0.98).setStrokeStyle(3, 0x7aa4d6, 0.95);
+    const viewportWidth = this.scale.width;
+    const viewportHeight = this.scale.height;
+    const centerX = viewportWidth / 2;
+    const centerY = viewportHeight / 2;
 
-    this.add.text(120, 90, 'Combat Sandbox', {
+    const panelWidth = Math.min(1120, viewportWidth - 80);
+    const panelHeight = Math.min(560, viewportHeight - 76);
+    const panelLeft = centerX - panelWidth / 2;
+    const panelTop = centerY - panelHeight / 2;
+
+    this.ui = {
+      panelLeft,
+      panelTop,
+      panelWidth,
+      panelHeight,
+      enemyX: panelLeft + panelWidth * 0.79,
+      enemyY: panelTop + panelHeight * 0.34,
+    };
+
+    this.add.rectangle(centerX, centerY, viewportWidth, viewportHeight, 0x101018, 1);
+    this.add
+      .rectangle(centerX, centerY, panelWidth, panelHeight, 0x1d1f2e, 0.98)
+      .setStrokeStyle(3, 0x7aa4d6, 0.95);
+
+    this.add.text(panelLeft + 34, panelTop + 28, 'Combat Sandbox', {
       fontFamily: 'monospace',
       fontSize: '28px',
       color: '#f9fbff',
     });
 
-    this.turnText = this.add.text(120, 130, '', {
+    this.turnText = this.add.text(panelLeft + 34, panelTop + 74, '', {
       fontFamily: 'monospace',
       fontSize: '18px',
       color: '#b2d3ff',
     });
 
-    this.playerHpText = this.add.text(120, 185, '', {
+    this.playerHpText = this.add.text(panelLeft + 34, panelTop + 126, '', {
       fontFamily: 'monospace',
       fontSize: '20px',
       color: '#c6ffc0',
     });
 
-    this.enemyHpText = this.add.text(120, 225, '', {
+    this.enemyHpText = this.add.text(panelLeft + 34, panelTop + 166, '', {
       fontFamily: 'monospace',
       fontSize: '20px',
       color: '#ffc2bc',
     });
 
-    this.logText = this.add.text(120, 290, '', {
+    this.logText = this.add.text(panelLeft + 34, panelTop + 228, '', {
       fontFamily: 'monospace',
       fontSize: '18px',
       color: '#f5edd0',
-      wordWrap: { width: 720 },
+      wordWrap: { width: Math.floor(panelWidth * 0.58) },
     });
 
     this.attackButton = this.add
-      .text(120, 380, '1) Attack', {
+      .text(panelLeft + 34, panelTop + panelHeight - 140, '1) Attack', {
         fontFamily: 'monospace',
         fontSize: '20px',
         color: '#f8f8f8',
@@ -105,7 +128,7 @@ export class CombatScene extends Phaser.Scene {
       .on('pointerdown', () => this.handleAction('attack'));
 
     this.defendButton = this.add
-      .text(320, 380, '2) Defend', {
+      .text(panelLeft + 236, panelTop + panelHeight - 140, '2) Defend', {
         fontFamily: 'monospace',
         fontSize: '20px',
         color: '#f8f8f8',
@@ -116,7 +139,7 @@ export class CombatScene extends Phaser.Scene {
       .on('pointerdown', () => this.handleAction('defend'));
 
     this.exitButton = this.add
-      .text(120, 445, 'Return', {
+      .text(panelLeft + 34, panelTop + panelHeight - 76, 'Return', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#d7ffb8',
@@ -127,7 +150,7 @@ export class CombatScene extends Phaser.Scene {
       .on('pointerdown', () => this.resolveReturn())
       .setVisible(false);
 
-    this.helpText = this.add.text(120, 485, 'Use keys 1/2 or click actions.', {
+    this.helpText = this.add.text(panelLeft + 34, panelTop + panelHeight - 36, 'Use keys 1/2 or click actions.', {
       fontFamily: 'monospace',
       fontSize: '16px',
       color: '#c8ccdc',
