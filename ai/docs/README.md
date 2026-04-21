@@ -6,8 +6,10 @@ This directory is used to house prompts and other document artifacts for the AI 
 ## Layout
 ---
 
-`prompts/` - Prompts used for characters
-`api/` - Docs related to API calling for current logic in `../src`
+`prompts/` - Prompts used for characters  
+`api/` - API documentation for runtime integrations in `../src`  
+
+Primary API doc: [`api/README.md`](./api/README.md)
 
 ## Prompt authoring notes
 ---
