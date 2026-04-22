@@ -5,7 +5,7 @@ export function buildEnrichedSystemPrompt(
   characterMemory: CharacterMemory,
   playerSummary: PlayerSummary
 ): string {
-  const { promptSummary, relationship, archetype } = characterMemory;
+  const { promptSummary, relationship, archetype, flags, progression, keyMemories } = characterMemory;
 
   const relationshipBlock = `
 ## Your Memory of This Player
@@ -23,5 +23,24 @@ export function buildEnrichedSystemPrompt(
 - Overall pattern: "${playerSummary.playerGlobal}"
 - Recent arc: "${playerSummary.recentArc}"`;
 
-  return `${basePrompt}\n${relationshipBlock}\n${playerBlock}`;
+  const memoryJsonBlock = `
+## Runtime Memory JSON (Source of Truth)
+
+Treat this JSON as authoritative state, not flavor text:
+
+\`\`\`json
+${JSON.stringify(
+  {
+    progression,
+    flags,
+    keyMemories: keyMemories.slice(-3),
+    relationship,
+    playerSummary,
+  },
+  null,
+  2
+)}
+\`\`\``;
+
+  return `${basePrompt}\n${relationshipBlock}\n${playerBlock}\n${memoryJsonBlock}`;
 }

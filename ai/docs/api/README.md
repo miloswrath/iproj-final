@@ -16,7 +16,8 @@ The runtime flow is:
 2. The app sends conversation context to local LLM (`src/client.ts`).
 3. The app may run additional classifier calls (quest offer + acceptance intent) via the same LLM API (`src/lifecycle/detector.ts`).
 4. On conversation termination, the app posts a quest-start notification to a game API endpoint (`src/notify/game-api.ts`).
-5. Failed outbound game notifications are persisted and retried next launch.
+5. On quest resolution, the app can post a quest-complete notification and apply outcome updates (`src/lifecycle/pipeline.ts`, `src/notify/game-api.ts`).
+6. Failed outbound game notifications are persisted and retried next launch.
 
 ---
 
@@ -28,6 +29,7 @@ The runtime flow is:
 | 2 | `http://localhost:1234/v1/chat/completions` | `POST` | `classifyQuestOffer()` in `src/lifecycle/detector.ts` | Verify whether NPC offered a concrete quest |
 | 3 | `http://localhost:1234/v1/chat/completions` | `POST` | `classifyIntent()` in `src/lifecycle/detector.ts` | Classify player intent (`accept/reject/uncertain`) |
 | 4 | `http://localhost:3000/quest/start` (default) or `GAME_API_URL` | `POST` | `notifyQuestStart()` in `src/notify/game-api.ts` | Notify game system that quest conversation terminated and should transition |
+| 5 | `http://localhost:3000/quest/complete` (default) or `GAME_API_URL_COMPLETE` | `POST` | `notifyQuestComplete()` in `src/notify/game-api.ts` | Notify game system that a quest resolved (success/failure/abandoned) |
 
 ---
 
@@ -91,8 +93,12 @@ All LLM calls use OpenAI-compatible Chat Completions via the OpenAI SDK:
 
 **Post-processing**
 - Response is parsed by extracting first `{ ... }` block.
+- First-offer pacing gate is enforced before classification is used:
+  - first quest offer cannot be on assistant turn 1-2,
+  - first quest offer is only eligible on assistant turns 3-5,
+  - quest-summary slugs should be context-specific (avoid repetitive stock phrasing).
 - Final quest ID format:
-  - `<characterName>_<questSummarySlug>`
+  - `<characterName>_L<questLevel>_<questSummarySlug>`
   - fallback slug: `q<questLevel>`
 
 **Failure handling**
@@ -168,7 +174,7 @@ Content-Type: application/json
 ```json
 {
   "character": "enabler",
-  "questId": "enabler_retrieve-relic-from-crypt",
+  "questId": "enabler_L2_prove-you-listened",
   "playerState": { "level": 1 },
   "relationshipSnapshot": {
     "trust": 74,
@@ -189,8 +195,63 @@ Content-Type: application/json
 **Retry behavior**
 - Pending payloads stored in:
   - `memory/pending-notifications.json` (resolved from `MEMORY_DIR`)
+- Queue schema is typed:
+```json
+{
+  "type": "quest_start | quest_complete",
+  "payload": {},
+  "attemptCount": 1,
+  "lastAttemptAt": "2026-04-22T12:00:00.000Z"
+}
+```
 - Retries are run automatically at startup via `retrySavedNotifications()`.
+- Replay routing is based on `type`:
+  - `quest_start` -> `/quest/start`
+  - `quest_complete` -> `/quest/complete`
+- Legacy untyped records are migrated as `quest_start` during replay.
 - On successful replay, pending list is reduced/cleared.
+
+### 4.2 Quest Complete Notification
+
+**Endpoint**
+- `POST /quest/complete`
+- Default absolute URL: `http://localhost:3000/quest/complete`
+- Overridable via `GAME_API_URL_COMPLETE`
+
+**Used by**
+- `notifyQuestComplete(payload)` in `src/notify/game-api.ts`
+- Can be triggered by `/complete` runtime command and quest completion pipeline in `src/lifecycle/pipeline.ts`
+
+**Request headers**
+```http
+Content-Type: application/json
+```
+
+**Request body schema**
+```json
+{
+  "character": "string",
+  "questId": "string",
+  "outcome": "success | failure | abandoned",
+  "playerState": {
+    "level": 1
+  },
+  "relationshipSnapshot": {
+    "trust": 0,
+    "dependency": 0,
+    "bond": 0,
+    "wariness": 0
+  },
+  "rewardReceived": true,
+  "eventTimestamp": "2026-04-22T12:00:00.000Z"
+}
+```
+
+**Response handling rules**
+- `2xx`: success, no retry needed.
+- `4xx`: treated as permanent client error, payload dropped.
+- `5xx`: treated as transient server error, payload saved for retry as `type: "quest_complete"`.
+- Network/transport failure: payload saved for retry as `type: "quest_complete"`.
 
 ---
 
@@ -199,6 +260,7 @@ Content-Type: application/json
 | Variable | Default | Used In | Description |
 |---|---|---|---|
 | `GAME_API_URL` | `http://localhost:3000/quest/start` | `src/notify/game-api.ts` | Full URL for quest start notifications |
+| `GAME_API_URL_COMPLETE` | `http://localhost:3000/quest/complete` | `src/notify/game-api.ts` | Full URL for quest complete notifications |
 | `ACCEPT_CONFIDENCE_THRESHOLD` | `75` | `src/lifecycle/detector.ts` | Minimum model confidence to auto-accept quest intent |
 
 ---
@@ -207,16 +269,17 @@ Content-Type: application/json
 
 If you are implementing the receiving game service:
 
-1. Expose `POST /quest/start`.
-2. Accept the JSON payload shown above.
+1. Expose both `POST /quest/start` and `POST /quest/complete`.
+2. Accept the JSON payloads shown above.
 3. Return:
    - `200/201/204` for success,
    - `4xx` for invalid payloads (client bug),
    - `5xx` for temporary server failures (will be retried).
-4. Make endpoint idempotent if possible (retries can resend same payload).
+4. Make endpoints idempotent (retries can resend the same payload).
 
-Recommended idempotency key candidate:
-- `character + questId + terminationReason + timestamp-at-receiver` policy.
+Recommended idempotency key candidates:
+- Quest start: `character + questId + terminationReason + timestamp-at-receiver`
+- Quest complete: `character + questId + outcome + eventTimestamp` (or equivalent server-side request id)
 
 ---
 
@@ -234,6 +297,7 @@ For completeness, developers can also drive behavior through CLI commands in `sr
 - `/features`
 - `/reload`
 - `/simulate_accept`
+- `/complete <success|failure|abandoned> [rewardReceived]`
 - `/quit`
 
 These commands are documented contractually in:
@@ -247,5 +311,5 @@ These commands are documented contractually in:
 - Conversation call path: `src/client.ts`
 - Lifecycle detection/classification: `src/lifecycle/detector.ts`
 - Notification client + retry queue: `src/notify/game-api.ts`
-- Pipeline trigger point: `src/lifecycle/pipeline.ts`
+- Pipeline trigger points (termination + quest completion): `src/lifecycle/pipeline.ts`
 - Runtime orchestration/command handling: `src/index.ts`

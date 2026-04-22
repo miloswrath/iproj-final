@@ -50,3 +50,13 @@
 **Alternatives considered**:
 - Trust upstream uniqueness only (rejected: unsafe under network retry conditions).
 - Accept duplicates and reconcile later (rejected: introduces avoidable inconsistency).
+
+## Validation Results (Implementation Run)
+
+- `npm test` passed with 11/11 tests.
+- `npm run build` (TypeScript compile) passed.
+- Verified behaviors:
+  - quest completion success/failure/abandoned updates mutate memory correctly;
+  - duplicate completion events are ignored by idempotency ledger;
+  - retry queue replays `quest_start` and `quest_complete` by explicit `type`;
+  - first quest offer is blocked on assistant turns 1-2 and allowed only on 3-5.

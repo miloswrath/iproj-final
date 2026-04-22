@@ -24,10 +24,14 @@ import {
 } from "./ui.js";
 import { ensureMemoryDirs, loadAllMemory, MEMORY_DIR, getFileTimestamp } from "./memory/store.js";
 import { buildEnrichedSystemPrompt } from "./memory/context.js";
-import { runPostConversationPipeline, runWithNotification } from "./lifecycle/pipeline.js";
+import {
+  runPostConversationPipeline,
+  runQuestCompletionPipeline,
+  runWithNotification,
+} from "./lifecycle/pipeline.js";
 import { detectAcceptance, detectQuestOffer } from "./lifecycle/detector.js";
 import { extractFeatures } from "./features/extractor.js";
-import { retrySavedNotifications } from "./notify/game-api.js";
+import { notifyQuestComplete, retrySavedNotifications } from "./notify/game-api.js";
 import type { PlayerSummary, Session } from "./types.js";
 import path2 from "path";
 
@@ -265,6 +269,59 @@ async function main(): Promise<void> {
             break;
           }
 
+          case "/complete": {
+            const [outcomeArg, rewardArg] = args;
+            const outcome =
+              outcomeArg === "success" || outcomeArg === "failure" || outcomeArg === "abandoned"
+                ? outcomeArg
+                : null;
+
+            if (!outcome) {
+              console.log(chalk.red("Usage: /complete <success|failure|abandoned> [rewardReceived:true|false]"));
+              break;
+            }
+
+            const rewardReceived = rewardArg ? rewardArg.toLowerCase() !== "false" : outcome !== "success";
+            const activeQuestId = session.conversationState.questOffered ?? "manual_completion";
+            const rel = session.activeMemory.relationship;
+
+            const result = await runQuestCompletionPipeline(session, {
+              character: session.activeCharacter.name,
+              questId: activeQuestId,
+              outcome,
+              playerState: { level: 1 },
+              relationshipSnapshot: {
+                trust: rel.trust,
+                dependency: rel.dependency,
+                bond: rel.bond,
+                wariness: rel.wariness,
+              },
+              rewardReceived,
+              eventTimestamp: new Date().toISOString(),
+            });
+
+            if (!result.applied) {
+              console.log(chalk.yellow(`[Quest completion skipped: ${result.reason}]`));
+            } else {
+              await notifyQuestComplete({
+                character: session.activeCharacter.name,
+                questId: activeQuestId,
+                outcome,
+                playerState: { level: 1 },
+                relationshipSnapshot: {
+                  trust: rel.trust,
+                  dependency: rel.dependency,
+                  bond: rel.bond,
+                  wariness: rel.wariness,
+                },
+                rewardReceived,
+                eventTimestamp: new Date().toISOString(),
+              });
+              console.log(chalk.green(`[Quest completion applied and notified: ${outcome}]`));
+            }
+            break;
+          }
+
           default:
             console.log(chalk.red(`Unknown command: ${cmd}. Type /help for commands.`));
         }
@@ -290,14 +347,28 @@ async function main(): Promise<void> {
         // Auto-detect quest offer in NPC response when conversation is still ACTIVE
         const phase = session.conversationState.phase;
         if (phase === "ACTIVE") {
-          const { offered, questId } = await detectQuestOffer(
+          const { offered, questId, blockedReason } = await detectQuestOffer(
             reply,
             session.activeCharacter.name,
-            session.activeMemory.progression.questLevel
+            session.activeMemory.progression.questLevel,
+            {
+              assistantResponseCount: session.conversationState.assistantResponseCount,
+              firstQuestOfferTurn: session.conversationState.firstQuestOfferTurn,
+            }
           );
           if (offered) {
             setQuestOffered(session, questId);
-            console.log(chalk.dim(`[Quest detected: "${questId}" — phase: ESCALATION]`));
+            console.log(
+              chalk.dim(
+                `[Quest detected: "${questId}" at assistant turn ${session.conversationState.assistantResponseCount} — phase: ESCALATION]`
+              )
+            );
+          } else if (blockedReason && blockedReason !== "already-offered") {
+            console.log(
+              chalk.dim(
+                `[offer_window_blocked] reason=${blockedReason} turn=${session.conversationState.assistantResponseCount}`
+              )
+            );
           }
         }
 

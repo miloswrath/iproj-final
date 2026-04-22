@@ -10,6 +10,7 @@ import type {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const MEMORY_DIR = path.resolve(__dirname, "../../memory");
 const CHARACTERS_DIR = path.join(MEMORY_DIR, "characters");
+const PROCESSED_COMPLETIONS_PATH = path.join(MEMORY_DIR, "processed-completions.json");
 
 export async function ensureMemoryDirs(): Promise<void> {
   await fs.mkdir(CHARACTERS_DIR, { recursive: true });
@@ -138,5 +139,32 @@ export async function getFileTimestamp(filePath: string): Promise<string> {
     return stat.mtime.toISOString();
   } catch {
     return "not found";
+  }
+}
+
+export function completionEventKey(input: {
+  character: string;
+  questId: string;
+  outcome: string;
+  eventTimestamp?: string;
+}): string {
+  return [
+    input.character.trim().toLowerCase(),
+    input.questId.trim().toLowerCase(),
+    input.outcome,
+    input.eventTimestamp ?? "none",
+  ].join("::");
+}
+
+export async function wasCompletionProcessed(eventKey: string): Promise<boolean> {
+  const processed = (await readJson<string[]>(PROCESSED_COMPLETIONS_PATH)) ?? [];
+  return processed.includes(eventKey);
+}
+
+export async function markCompletionProcessed(eventKey: string): Promise<void> {
+  const processed = (await readJson<string[]>(PROCESSED_COMPLETIONS_PATH)) ?? [];
+  if (!processed.includes(eventKey)) {
+    processed.push(eventKey);
+    await writeJsonAtomic(PROCESSED_COMPLETIONS_PATH, processed);
   }
 }

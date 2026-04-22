@@ -2,6 +2,8 @@ import type {
   CharacterMemory,
   ConversationFeatures,
   PlayerProfile,
+  QuestCompletionPayload,
+  QuestOutcome,
 } from "../types.js";
 
 const PERSISTENCE = 0.80;
@@ -116,5 +118,62 @@ export function computeDerivedMetrics(memory: CharacterMemory): {
   return {
     manipulationPressure: Math.round((dependency * instrumentalInterest) / 100),
     favorability: Math.round((bond + trust - wariness) / 2),
+  };
+}
+
+export function applyQuestOutcomeToCharacterMemory(
+  memory: CharacterMemory,
+  payload: QuestCompletionPayload
+): CharacterMemory {
+  const { outcome, rewardReceived, questId } = payload;
+
+  const flags = {
+    ...memory.flags,
+    recentSuccess: outcome === "success",
+    recentFailure: outcome === "failure",
+    playerNoticedRewardMismatch: outcome === "success" && rewardReceived === false,
+  };
+
+  const progression = {
+    ...memory.progression,
+    questLevel:
+      outcome === "success"
+        ? memory.progression.questLevel + 1
+        : memory.progression.questLevel,
+  };
+
+  const outcomeText: Record<QuestOutcome, string> = {
+    success: "succeeded",
+    failure: "failed",
+    abandoned: "was abandoned",
+  };
+
+  const summary = `Quest ${questId} ${outcomeText[outcome]}.`;
+  const keyMemories = [...memory.keyMemories, summary].slice(-5);
+
+  return {
+    ...memory,
+    flags,
+    progression,
+    keyMemories,
+  };
+}
+
+export function applyQuestOutcomeToPlayerProfile(
+  profile: PlayerProfile,
+  outcome: QuestOutcome
+): PlayerProfile {
+  const burnoutDelta = outcome === "success" ? -2 : outcome === "failure" ? 4 : 3;
+  const hopeDelta = outcome === "success" ? 4 : -3;
+  const riskDelta = outcome === "success" ? 0.02 : outcome === "failure" ? -0.02 : 0;
+
+  return {
+    ...profile,
+    burnout: clamp(profile.burnout + burnoutDelta),
+    hope: clamp(profile.hope + hopeDelta),
+    traits: {
+      ...profile.traits,
+      riskTolerance: clamp01(profile.traits.riskTolerance + riskDelta),
+    },
   };
 }

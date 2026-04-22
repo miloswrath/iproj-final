@@ -40,10 +40,10 @@ ${npcText}
 Is the NPC explicitly asking the player to go to a dangerous location and retrieve something?
 
 Respond ONLY with a JSON object, no markdown:
-{"offered": true | false, "questSummary": "<3-6 word slug describing the errand, e.g. retrieve-relic-from-crypt>"}
+{"offered": true | false, "questSummary": "<3-6 word hyphenated slug in the NPC's voice>"}
 
 - "offered" = true only if the NPC is making a concrete request to go somewhere dangerous and bring something back
-- "questSummary" = a short hyphenated slug; empty string if offered is false`;
+- "questSummary" = a short hyphenated slug that avoids generic stock phrasing and reflects the specific conversation context; empty string if offered is false`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -66,11 +66,45 @@ Respond ONLY with a JSON object, no markdown:
   }
 }
 
+export function evaluateQuestOfferWindow(
+  assistantResponseCount: number,
+  firstQuestOfferTurn: number | null
+):
+  | { allowed: true; reason: "eligible" }
+  | { allowed: false; reason: "already-offered" | "too-early" | "window-closed" } {
+  if (firstQuestOfferTurn !== null) {
+    return { allowed: false, reason: "already-offered" };
+  }
+
+  if (assistantResponseCount < 3) {
+    return { allowed: false, reason: "too-early" };
+  }
+
+  if (assistantResponseCount > 5) {
+    return { allowed: false, reason: "window-closed" };
+  }
+
+  return { allowed: true, reason: "eligible" };
+}
+
 export async function detectQuestOffer(
   npcText: string,
   characterName: string,
-  questLevel: number
-): Promise<{ offered: boolean; questId: string }> {
+  questLevel: number,
+  offerWindow?: { assistantResponseCount: number; firstQuestOfferTurn: number | null },
+  classifyFn: (text: string) => Promise<{ offered: boolean; questSummary: string }> = classifyQuestOffer
+): Promise<{ offered: boolean; questId: string; blockedReason?: "already-offered" | "too-early" | "window-closed" }> {
+  if (offerWindow) {
+    const gate = evaluateQuestOfferWindow(
+      offerWindow.assistantResponseCount,
+      offerWindow.firstQuestOfferTurn
+    );
+
+    if (!gate.allowed) {
+      return { offered: false, questId: "", blockedReason: gate.reason };
+    }
+  }
+
   const ruleFired = checkQuestOfferRule(npcText);
 
   // Only call the LLM if the rule fired (avoid an extra round-trip every turn)
@@ -78,14 +112,14 @@ export async function detectQuestOffer(
     return { offered: false, questId: "" };
   }
 
-  const { offered, questSummary } = await classifyQuestOffer(npcText);
+  const { offered, questSummary } = await classifyFn(npcText);
 
   if (!offered) {
     return { offered: false, questId: "" };
   }
 
   const slug = questSummary.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || `q${questLevel}`;
-  const questId = `${characterName}_${slug}`;
+  const questId = `${characterName}_L${questLevel}_${slug}`;
 
   return { offered: true, questId };
 }

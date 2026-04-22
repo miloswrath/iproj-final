@@ -28,4 +28,4 @@
 
 ## Backward Compatibility Rule
 
-Legacy untyped records (if present) should be handled defensively (logged and dropped, or migrated once) to avoid misrouting.
+Legacy untyped records (if present) are treated as `quest_start` records during replay migration, then persisted in typed format for subsequent retries.

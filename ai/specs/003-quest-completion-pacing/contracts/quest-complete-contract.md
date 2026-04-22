@@ -24,7 +24,8 @@
     "bond": 70,
     "wariness": 12
   },
-  "rewardReceived": false
+  "rewardReceived": false,
+  "eventTimestamp": "2026-04-22T12:00:00.000Z"
 }
 ```
 
@@ -36,6 +37,7 @@
 - `playerState.level`: required integer >= 1.
 - `relationshipSnapshot`: required object with numeric values in accepted relationship ranges.
 - `rewardReceived`: required boolean.
+- `eventTimestamp`: optional string timestamp used for idempotency keying.
 
 ## Response Handling Contract
 

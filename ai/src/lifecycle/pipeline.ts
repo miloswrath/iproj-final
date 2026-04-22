@@ -1,8 +1,19 @@
 import chalk from "chalk";
-import type { PlayerProfile, Session } from "../types.js";
+import type { PlayerProfile, QuestCompletionPayload, Session } from "../types.js";
 import { extractFeatures } from "../features/extractor.js";
-import { persistMemory, loadAllMemory } from "../memory/store.js";
-import { updateCharacterMemory, updatePlayerProfile } from "../memory/updater.js";
+import {
+  completionEventKey,
+  persistMemory,
+  loadAllMemory,
+  markCompletionProcessed,
+  wasCompletionProcessed,
+} from "../memory/store.js";
+import {
+  applyQuestOutcomeToCharacterMemory,
+  applyQuestOutcomeToPlayerProfile,
+  updateCharacterMemory,
+  updatePlayerProfile,
+} from "../memory/updater.js";
 import { generateSummaries } from "../memory/summarizer.js";
 import { notifyQuestStart } from "../notify/game-api.js";
 
@@ -65,4 +76,38 @@ export async function runWithNotification(
     },
     terminationReason: session.conversationState.terminationReason ?? "rule",
   });
+}
+
+function validateQuestCompletionPayload(payload: QuestCompletionPayload): boolean {
+  const hasCoreText = payload.character.trim().length > 0 && payload.questId.trim().length > 0;
+  const validOutcome = payload.outcome === "success" || payload.outcome === "failure" || payload.outcome === "abandoned";
+  return hasCoreText && validOutcome;
+}
+
+export async function runQuestCompletionPipeline(
+  session: Session,
+  payload: QuestCompletionPayload
+): Promise<{ applied: boolean; reason: "applied" | "duplicate" | "invalid" }> {
+  if (!validateQuestCompletionPayload(payload)) {
+    return { applied: false, reason: "invalid" };
+  }
+
+  const eventKey = completionEventKey(payload);
+  if (await wasCompletionProcessed(eventKey)) {
+    return { applied: false, reason: "duplicate" };
+  }
+
+  const { characterMemory, playerProfile, playerSummary } = await loadAllMemory(payload.character);
+
+  const updatedCharacter = applyQuestOutcomeToCharacterMemory(characterMemory, payload);
+  const updatedProfile = applyQuestOutcomeToPlayerProfile(playerProfile, payload.outcome);
+
+  await persistMemory(payload.character, updatedCharacter, updatedProfile, playerSummary);
+  await markCompletionProcessed(eventKey);
+
+  if (session.activeCharacter.name === payload.character) {
+    session.activeMemory = updatedCharacter;
+  }
+
+  return { applied: true, reason: "applied" };
 }
