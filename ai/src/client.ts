@@ -13,8 +13,30 @@ export async function sendMessage(
 ): Promise<string> {
   appendMessage(session, "user", userText);
 
+  const runtimeState = {
+    conversationState: {
+      phase: session.conversationState.phase,
+      assistantResponseCount: session.conversationState.assistantResponseCount,
+      firstQuestOfferTurn: session.conversationState.firstQuestOfferTurn,
+      questOffered: session.conversationState.questOffered,
+    },
+    recentFlags: session.activeMemory.flags,
+    recentKeyMemories: session.activeMemory.keyMemories.slice(-3),
+  };
+
+  const runtimeInstruction = [
+    "Runtime state JSON is authoritative.",
+    "If the recent flags or key memories indicate a just-completed quest, do not offer a new quest in assistant turns 1-2.",
+    "Use the first post-completion turns for relationship follow-through and a player-facing question.",
+    "Only offer a new quest from assistant turn 3 onward.",
+  ].join(" ");
+
   const messages = [
     { role: "system" as const, content: session.activeCharacter.systemPrompt },
+    {
+      role: "system" as const,
+      content: `${runtimeInstruction}\n\n\`\`\`json\n${JSON.stringify(runtimeState, null, 2)}\n\`\`\``,
+    },
     ...getHistoryMessages(session),
   ];
 

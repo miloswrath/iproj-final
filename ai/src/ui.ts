@@ -61,6 +61,7 @@ export function renderHelp(): void {
   /features           — show current conversation feature scores
   /reload             — reload memory from disk
   /simulate_accept    — force quest acceptance and run pipeline
+  /complete <outcome> [rewardReceived] — apply a quest completion event
   /quit               — exit
   Ctrl+C              — exit
   <anything else>     — send as a chat message`);
@@ -96,6 +97,8 @@ export function renderState(
   console.log(`  manipulationPressure: ${derived.manipulationPressure}  favorability: ${derived.favorability}  (derived)`);
   console.log(`  phase:            ${conversationState.phase}`);
   console.log(`  questOffered:     ${conversationState.questOffered ?? "none"}`);
+  console.log(`  assistantTurn:    ${conversationState.assistantResponseCount}`);
+  console.log(`  firstOfferTurn:   ${conversationState.firstQuestOfferTurn ?? "none"}`);
 
   console.log(chalk.underline("\n[Prompt Summaries]"));
   console.log(`  playerGlobal:    "${playerSummary.playerGlobal}"`);
@@ -152,6 +155,8 @@ export function renderConversationFeatures(
   console.log();
   console.log(`Conversation Phase:    ${state.phase}`);
   console.log(`Quest Offered:         ${state.questOffered ?? "none"}`);
+  console.log(`Assistant Turn:        ${state.assistantResponseCount}`);
+  console.log(`First Offer Turn:      ${state.firstQuestOfferTurn ?? "none"}`);
   console.log(`Termination Trigger:   ${state.terminationReason ?? "none yet"}`);
   console.log();
 }

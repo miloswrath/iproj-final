@@ -22,6 +22,8 @@ export function createSession(
       questOffered: null,
       terminationReason: null,
       frozen: false,
+      assistantResponseCount: 0,
+      firstQuestOfferTurn: null,
     },
   };
 }
@@ -38,6 +40,10 @@ export function appendMessage(
     content,
     timestamp: new Date(),
   });
+
+  if (role === "assistant") {
+    session.conversationState.assistantResponseCount += 1;
+  }
 }
 
 export function appendSwitch(
@@ -70,6 +76,12 @@ export function setPhase(session: Session, phase: ConversationPhase): void {
 
 export function setQuestOffered(session: Session, questId: string): void {
   session.conversationState.questOffered = questId;
+
+  if (session.conversationState.firstQuestOfferTurn === null) {
+    session.conversationState.firstQuestOfferTurn =
+      session.conversationState.assistantResponseCount;
+  }
+
   if (session.conversationState.phase === "ACTIVE") {
     session.conversationState.phase = "ESCALATION";
   }

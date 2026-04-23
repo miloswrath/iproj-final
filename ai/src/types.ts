@@ -31,6 +31,45 @@ export interface Session {
   conversationState: ConversationState;
 }
 
+export type QuestOutcome = "success" | "failure" | "abandoned";
+
+export interface QuestStartPayload {
+  character: string;
+  questId: string;
+  playerState: { level: number };
+  relationshipSnapshot: {
+    trust: number;
+    dependency: number;
+    bond: number;
+    wariness: number;
+  };
+  terminationReason: string;
+}
+
+export interface QuestCompletionPayload {
+  character: string;
+  questId: string;
+  outcome: QuestOutcome;
+  playerState: { level: number };
+  relationshipSnapshot: {
+    trust: number;
+    dependency: number;
+    bond: number;
+    wariness: number;
+  };
+  rewardReceived: boolean;
+  eventTimestamp?: string;
+}
+
+export type NotificationType = "quest_start" | "quest_complete";
+
+export interface PendingNotificationRecord {
+  type: NotificationType;
+  payload: QuestStartPayload | QuestCompletionPayload;
+  attemptCount?: number;
+  lastAttemptAt?: string;
+}
+
 // ─── Memory Types ─────────────────────────────────────────────────────────────
 
 export interface PlayerProfile {
@@ -95,6 +134,8 @@ export interface ConversationState {
   questOffered: string | null;
   terminationReason: "rule" | "model" | "simulate" | "exit" | null;
   frozen: boolean;
+  assistantResponseCount: number;
+  firstQuestOfferTurn: number | null;
 }
 
 export interface ConversationFeatures {
