@@ -3,6 +3,9 @@ import { DeveloperModeController } from '../editor/DeveloperModeController';
 import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
 import curatedDungeonPool from '../data/dungeons/curatedDungeonPool.json';
 import { buildDungeonLayoutsFromBlueprints } from '../dungeonPoolBuilder';
+import { InventoryOverlay } from '../ui/InventoryOverlay';
+import { INVENTORY_ITEM_DEFS } from '../ui/inventoryData';
+import { claimChestRewards, getPlaytestInventoryState, getPlaytestProgressionSummary, recordDungeonClear } from '../playtestProgression';
 
 const TILE_SIZE = 40;
 const TILE_SCALE = TILE_SIZE / 16;
@@ -44,6 +47,7 @@ const ENEMY_LINE_OF_SIGHT_CELLS = 8;
 const ENEMY_CHASE_SPEED = 120;
 const ENEMY_COUNT_MIN = 2;
 const ENEMY_COUNT_MAX = 4;
+const CHEST_INTERACT_DISTANCE = 34;
 
 const DIGIT_KEY_CODES = new Map([
   [Phaser.Input.Keyboard.KeyCodes.ZERO, 0],
@@ -200,6 +204,7 @@ export class DungeonScene extends Phaser.Scene {
     this.nextDungeonKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CLOSED_BRACKET);
     this.digitKeys = [...DIGIT_KEY_CODES.keys()].map((code) => this.input.keyboard.addKey(code));
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keys = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,S,A,D');
     this.dungeonNumberBuffer = '';
@@ -237,6 +242,11 @@ export class DungeonScene extends Phaser.Scene {
       worldHeight: DUNGEON_HEIGHT,
       registry: loadDevAssetRegistry('dungeon', this.textures),
     });
+    this.inventoryOverlay = new InventoryOverlay(this, getPlaytestInventoryState(), {
+      title: 'Dungeon Pack',
+      subtitle: 'I / Tab toggle | Arrow keys browse | Inventory pauses movement only',
+    });
+    this.createChestUi();
   }
 
   createBackground() {
@@ -263,7 +273,7 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     this.add
-      .text(16, 40, 'R next layout | [/] swap dungeon | type dungeon number | Q return overworld', {
+      .text(16, 40, 'E open chest | R next layout | [/] swap dungeon | type dungeon number | Q return overworld', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#c9ddff',
@@ -305,6 +315,43 @@ export class DungeonScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
+
+    const progressionSummary = getPlaytestProgressionSummary();
+    this.add
+      .text(16, 152, `Progression seed: open 1-2 dungeon chests to earn loot (${progressionSummary.rewardsEarned} earned so far)`, {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#b9ffd8',
+        backgroundColor: '#0000009b',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH);
+  }
+
+  createChestUi() {
+    this.chestPrompt = this.add
+      .text(16, 180, 'Press E to open chest', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#fff1ad',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
+
+    this.chestRewardLabel = this.add
+      .text(16, 208, 'Latest chest reward: none yet', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#c8ffbc',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH);
   }
 
   updateEncounterUi() {
@@ -336,6 +383,11 @@ export class DungeonScene extends Phaser.Scene {
     this.decorTaken = new Set([`${layoutState.spawnCell.x},${layoutState.spawnCell.y}`]);
     this.floorCellSet = new Set(layoutState.floorCells.map((cell) => `${cell.x},${cell.y}`));
     this.renderedWallCells = new Set();
+    this.chestSprites = [];
+
+    for (const chest of layoutState.chests ?? []) {
+      this.decorTaken.add(`${chest.x},${chest.y}`);
+    }
 
     for (const floorCell of layoutState.floorCells) {
       this.renderFloorCell(floorCell.x, floorCell.y);
@@ -351,12 +403,37 @@ export class DungeonScene extends Phaser.Scene {
 
     this.renderRoomDecor(layoutState.rooms);
     this.renderCorridorDecor(layoutState.floorCells);
+    this.renderChests(layoutState.chests ?? []);
 
     for (const blocker of layoutState.blockers) {
       this.createCollisionCell(blocker.x, blocker.y);
       if (this.isWallVisible(blocker.x, blocker.y)) {
         this.renderWallCell(blocker.x, blocker.y);
       }
+    }
+  }
+
+  renderChests(chests) {
+    for (const chest of chests) {
+      const center = this.cellToWorld(chest.x, chest.y);
+      const isOpen = chest.opened === true;
+      const frame = isOpen ? 24 : 20;
+
+      this.add
+        .ellipse(center.x, center.y + TILE_SIZE * 0.28, TILE_SIZE * 0.62, TILE_SIZE * 0.2, 0x000000, 0.24)
+        .setDepth(center.y + 8);
+
+      const sprite = this.add
+        .image(center.x, center.y + 2, 'dungeon-chests-doors', frame)
+        .setScale(1.2)
+        .setDepth(center.y + 12);
+
+      if (!isOpen) {
+        this.add.circle(center.x, center.y - 18, 4, 0xffd36f, 0.6).setDepth(center.y + 13);
+      }
+
+      chest.sprite = sprite;
+      this.chestSprites.push(sprite);
     }
   }
 
@@ -1000,6 +1077,18 @@ export class DungeonScene extends Phaser.Scene {
       this.editorCameraDetached = false;
     }
 
+    if (this.inventoryOverlay?.update()) {
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      if (this.enemies) {
+        this.enemies.getChildren().forEach((enemy) => enemy.setVelocity(0, 0));
+      }
+      return;
+    }
+
+    this.updateChestInteraction();
+
     if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
       this.switchDungeonByOffset(1);
       return;
@@ -1026,6 +1115,43 @@ export class DungeonScene extends Phaser.Scene {
 
     this.updateMovement();
     this.updateRoamingEnemies();
+  }
+
+  updateChestInteraction() {
+    const nearbyChest = this.getNearbyClosedChest();
+    this.chestPrompt?.setVisible(Boolean(nearbyChest));
+
+    if (!nearbyChest || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      return;
+    }
+
+    const rewardResult = claimChestRewards(nearbyChest, this.layoutState.id);
+    if (!rewardResult.granted) {
+      return;
+    }
+
+    nearbyChest.sprite?.setFrame(24);
+    this.layoutState.lastChestRewardText = rewardResult.summaryText;
+    if (this.chestRewardLabel) {
+      this.chestRewardLabel.setText(`Latest chest reward: ${rewardResult.summaryText}`);
+    }
+  }
+
+  getNearbyClosedChest() {
+    const chests = this.layoutState.chests ?? [];
+    for (const chest of chests) {
+      if (chest.opened) {
+        continue;
+      }
+
+      const center = this.cellToWorld(chest.x, chest.y);
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, center.x, center.y);
+      if (distance <= CHEST_INTERACT_DISTANCE) {
+        return chest;
+      }
+    }
+
+    return null;
   }
 
   updateMovement() {
@@ -1265,6 +1391,15 @@ export class DungeonScene extends Phaser.Scene {
       defeatedEnemyIds: [...(layoutState.defeatedEnemyIds ?? [])],
       enemyCount: layoutState.enemyCount ?? 0,
       encounterCompleted: layoutState.encounterCompleted ?? false,
+      clearRecorded: layoutState.clearRecorded ?? false,
+      lastChestRewardText: layoutState.lastChestRewardText ?? '',
+      chests: (layoutState.chests ?? this.buildChestPlacements(layoutState.rooms, layoutState.spawnCell, layoutState.tileTheme)).map((chest) => ({
+        id: chest.id,
+        x: chest.x,
+        y: chest.y,
+        opened: chest.opened ?? false,
+        rewards: chest.rewards.map((reward) => ({ ...reward })),
+      })),
     };
   }
 
@@ -1274,11 +1409,67 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     this.returning = true;
+    recordDungeonClear(this.layoutState);
     this.scene.start('overworld', {
       spawnX: this.returnX,
       spawnY: this.returnY,
       dungeonCompletionStatus: this.layoutState.encounterCompleted ? 'complete' : this.completionStatus,
+      rewardSummaryText: this.layoutState.lastChestRewardText ?? '',
     });
+  }
+
+  buildChestPlacements(rooms, spawnCell, tileTheme = 'classic') {
+    const candidateRooms = rooms.filter((room) => {
+      const center = this.roomCenter(room);
+      return center.x !== spawnCell.x || center.y !== spawnCell.y;
+    });
+
+    const chestCount = Phaser.Math.Clamp(candidateRooms.length >= 4 ? 2 : 1, 1, 2);
+    const chests = [];
+
+    for (let index = 0; index < candidateRooms.length && chests.length < chestCount; index += 1) {
+      const room = candidateRooms[index * 2] ?? candidateRooms[index];
+      if (!room) {
+        continue;
+      }
+
+      const center = this.roomCenter(room);
+      const offsetX = index % 2 === 0 ? 1 : -1;
+      const x = Phaser.Math.Clamp(center.x + offsetX, room.x + 1, room.x + room.w - 2);
+      const y = Phaser.Math.Clamp(center.y + 1, room.y + 1, room.y + room.h - 2);
+
+      chests.push({
+        id: `chest-${index + 1}`,
+        x,
+        y,
+        opened: false,
+        rewards: this.buildChestRewards(tileTheme, index),
+      });
+    }
+
+    return chests;
+  }
+
+  buildChestRewards(tileTheme, chestIndex) {
+    const itemId = tileTheme === 'undead'
+      ? INVENTORY_ITEM_DEFS.crystalShard.id
+      : INVENTORY_ITEM_DEFS.ironOre.id;
+
+    const rewards = [
+      {
+        itemId,
+        quantity: chestIndex === 0 ? 1 : 2,
+      },
+    ];
+
+    if (chestIndex === 0) {
+      rewards.unshift({
+        itemId: INVENTORY_ITEM_DEFS.slimeJelly.id,
+        quantity: 1,
+      });
+    }
+
+    return rewards;
   }
 
   generateDungeonLayout() {
@@ -1337,6 +1528,8 @@ export class DungeonScene extends Phaser.Scene {
       }
     }
 
+    const tileTheme = Math.random() < 0.35 ? 'undead' : 'classic';
+
     return {
       id: `generated-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       name: 'Generated Fallback Dungeon',
@@ -1344,8 +1537,11 @@ export class DungeonScene extends Phaser.Scene {
       floorCells,
       rooms: sortedRooms,
       spawnCell,
-      tileTheme: Math.random() < 0.35 ? 'undead' : 'classic',
+      tileTheme,
       encounterCompleted: false,
+      clearRecorded: false,
+      lastChestRewardText: '',
+      chests: this.buildChestPlacements(sortedRooms, spawnCell, tileTheme),
     };
   }
 

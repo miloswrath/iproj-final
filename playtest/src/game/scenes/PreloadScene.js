@@ -112,6 +112,19 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    this.load.image('ui-inventory-layout', assetPaths.inventoryLayoutUrl);
+    this.load.spritesheet('ui-inventory-layout-tiles', assetPaths.inventoryLayoutUrl, {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
+    this.load.spritesheet('ui-inventory-frame-tiles', assetPaths.inventoryFrameTilesUrl, {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
+    this.load.spritesheet('ui-inventory-icons', assetPaths.inventoryIconsUrl, {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
 
     if (isAssetCanvasMode) {
       preloadAutoAssetImages(this);

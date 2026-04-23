@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--isolated=true",
+        "--headless=false",
+        "--usage-statistics=false"
+      ]
+    }
+  },
+  "inputs": []
+}

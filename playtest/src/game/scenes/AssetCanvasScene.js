@@ -10,21 +10,21 @@ const HUD_DEPTH = 2000;
 const DEFAULT_TILESET_FRAME_SIZE = { w: 16, h: 16 };
 const MAX_FRAMES_PER_TEXTURE = 4096;
 const DUNGEON_COMPAT_AUTO_PATTERNS = [
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/bones_shadow',
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/crystal_shadow',
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/grave_shadow',
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/pile_sculls',
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/rock_shadow',
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/ruin_shadow',
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/scull_door',
-  'craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/thorn_',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/bones_shadow',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/crystal_shadow',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/grave_shadow',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/pile_sculls',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/rock_shadow',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/ruin_shadow',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/scull_door',
+  '_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/png/objects_separately/thorn_',
 ];
 
 const OVERWORLD_COMPAT_AUTO_PATTERNS = [
   'craftpix-net-504452-free-village-pixel-tileset-for-top-down-defense/png/objects_separately/',
   'craftpix-net-504452-free-village-pixel-tileset-for-top-down-defense/png/animated_objects/',
-  'craftpix-net-505052-free-forest-objects-top-down-pixel-art/png/no_shadow/',
-  'craftpix-net-505052-free-forest-objects-top-down-pixel-art/png/with_shadow/',
+  '_source/craftpix-net-505052-free-forest-objects-top-down-pixel-art/png/no_shadow/',
+  '_source/craftpix-net-505052-free-forest-objects-top-down-pixel-art/png/with_shadow/',
   'objects/overworld/',
   'tilesets/overworld/',
 ];
