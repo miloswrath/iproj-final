@@ -9,9 +9,19 @@ const GROUND_TRANSITION = 'transition';
 const GROUND_TOWN = 'town';
 
 const SPAWN_CELL = { x: 4, y: 37 };
-const DUNGEON_ENTRY_CELL = { x: 67, y: 11 };
+const DUNGEON_ENTRY_CELL = { x: 68, y: 31 };
 
-const TOWN_RECT = { x: 54, y: 5, w: 20, h: 16 };
+const TOWN_RECT = { x: 54, y: 5, w: 20, h: 14 };
+const POND_CELLS = [
+  { x: 32, y: 8 }, { x: 33, y: 8 }, { x: 34, y: 8 },
+  { x: 30, y: 9 }, { x: 31, y: 9 }, { x: 32, y: 9 }, { x: 33, y: 9 }, { x: 34, y: 9 }, { x: 35, y: 9 }, { x: 36, y: 9 },
+  { x: 29, y: 10 }, { x: 30, y: 10 }, { x: 31, y: 10 }, { x: 32, y: 10 }, { x: 33, y: 10 }, { x: 34, y: 10 }, { x: 35, y: 10 }, { x: 36, y: 10 }, { x: 37, y: 10 },
+  { x: 29, y: 11 }, { x: 30, y: 11 }, { x: 31, y: 11 }, { x: 32, y: 11 }, { x: 33, y: 11 }, { x: 34, y: 11 }, { x: 35, y: 11 }, { x: 36, y: 11 }, { x: 37, y: 11 }, { x: 38, y: 11 },
+  { x: 29, y: 12 }, { x: 30, y: 12 }, { x: 31, y: 12 }, { x: 32, y: 12 }, { x: 33, y: 12 }, { x: 34, y: 12 }, { x: 35, y: 12 }, { x: 36, y: 12 }, { x: 37, y: 12 },
+  { x: 30, y: 13 }, { x: 31, y: 13 }, { x: 32, y: 13 }, { x: 33, y: 13 }, { x: 34, y: 13 }, { x: 35, y: 13 }, { x: 36, y: 13 },
+  { x: 31, y: 14 }, { x: 32, y: 14 }, { x: 33, y: 14 }, { x: 34, y: 14 }, { x: 35, y: 14 },
+  { x: 32, y: 15 }, { x: 33, y: 15 }, { x: 34, y: 15 },
+];
 
 const CRITICAL_PATH_POINTS = [
   { x: 4, y: 37 },
@@ -24,8 +34,11 @@ const CRITICAL_PATH_POINTS = [
   { x: 53, y: 20 },
   { x: 53, y: 15 },
   { x: 60, y: 15 },
-  { x: 60, y: 11 },
-  { x: 67, y: 11 },
+  { x: 60, y: 20 },
+  { x: 65, y: 20 },
+  { x: 65, y: 26 },
+  { x: 68, y: 26 },
+  { x: 68, y: 31 },
 ];
 
 const BASE_DECOR_CLUSTERS = [
@@ -55,23 +68,18 @@ const BASE_DECOR_CLUSTERS = [
     name: 'town-set',
     items: [
       { x: 56, y: 7, kind: 'house-1', layer: 'foreground' },
-      { x: 61, y: 7, kind: 'house-2', layer: 'foreground' },
-      { x: 67, y: 8, kind: 'guild-hall-exterior', layer: 'foreground' },
-      { x: 71, y: 7, kind: 'house-4', layer: 'foreground' },
+      { x: 65, y: 7, kind: 'guild-hall-exterior', layer: 'foreground' },
+      { x: 73, y: 7, kind: 'house-4', layer: 'foreground' },
       { x: 56, y: 18, kind: 'house-3', layer: 'foreground' },
-      { x: 62, y: 18, kind: 'house-2', layer: 'foreground' },
-      { x: 70, y: 18, kind: 'house-1', layer: 'foreground' },
-      { x: 58, y: 12, kind: 'tent-1', layer: 'foreground' },
-      { x: 64, y: 12, kind: 'tent-3', layer: 'foreground' },
-      { x: 69, y: 12, kind: 'tent-4', layer: 'foreground' },
+      { x: 64, y: 18, kind: 'house-2', layer: 'foreground' },
+      { x: 72, y: 18, kind: 'house-1', layer: 'foreground' },
+      { x: 60, y: 12, kind: 'tent-1', layer: 'foreground' },
+      { x: 69, y: 13, kind: 'tent-4', layer: 'foreground' },
       { x: 55, y: 10, kind: 'grass', layer: 'decor' },
-      { x: 60, y: 10, kind: 'grass', layer: 'decor' },
-      { x: 66, y: 10, kind: 'grass', layer: 'decor' },
-      { x: 72, y: 10, kind: 'grass', layer: 'decor' },
+      { x: 60, y: 10, kind: 'flower', layer: 'decor' },
       { x: 55, y: 15, kind: 'grass', layer: 'decor' },
-      { x: 60, y: 15, kind: 'grass', layer: 'decor' },
-      { x: 66, y: 15, kind: 'grass', layer: 'decor' },
-      { x: 71, y: 15, kind: 'grass', layer: 'decor' },
+      { x: 63, y: 15, kind: 'flower', layer: 'decor' },
+      { x: 71, y: 15, kind: 'town-sign', layer: 'decor' },
       { x: 54, y: 6, kind: 'willow-tree', layer: 'foreground' },
       { x: 73, y: 19, kind: 'willow-tree', layer: 'foreground' },
       { x: 54, y: 19, kind: 'mega-tree', layer: 'foreground' },
@@ -83,13 +91,44 @@ const BASE_DECOR_CLUSTERS = [
       { x: 57, y: 9, kind: 'grass', layer: 'decor' },
       { x: 58, y: 9, kind: 'grass', layer: 'decor' },
       { x: 59, y: 9, kind: 'grass', layer: 'decor' },
-      { x: 63, y: 9, kind: 'grass', layer: 'decor' },
-      { x: 64, y: 9, kind: 'grass', layer: 'decor' },
-      { x: 65, y: 9, kind: 'grass', layer: 'decor' },
+      { x: 63, y: 9, kind: 'flower', layer: 'decor' },
+      { x: 66, y: 9, kind: 'grass', layer: 'decor' },
       { x: 68, y: 14, kind: 'grass', layer: 'decor' },
-      { x: 67, y: 14, kind: 'grass', layer: 'decor' },
-      { x: 62, y: 14, kind: 'grass', layer: 'decor' },
-      { x: 61, y: 14, kind: 'grass', layer: 'decor' },
+      { x: 64, y: 14, kind: 'flower', layer: 'decor' },
+    ],
+  },
+  {
+    name: 'pond-edge',
+    items: [
+      { x: 29, y: 8, kind: 'grass', layer: 'decor' },
+      { x: 38, y: 9, kind: 'flower', layer: 'decor' },
+      { x: 28, y: 12, kind: 'pond-stone', layer: 'decor' },
+      { x: 38, y: 13, kind: 'pond-stone', layer: 'decor' },
+      { x: 31, y: 16, kind: 'reeds', layer: 'decor' },
+      { x: 35, y: 16, kind: 'reeds', layer: 'decor' },
+      { x: 29, y: 14, kind: 'willow-tree', layer: 'foreground' },
+      { x: 39, y: 10, kind: 'willow-tree', layer: 'foreground' },
+    ],
+  },
+  {
+    name: 'dungeon-shrine',
+    items: [
+      { x: 64, y: 27, kind: 'portal-stone', layer: 'decor' },
+      { x: 67, y: 26, kind: 'portal-stone', layer: 'decor' },
+      { x: 69, y: 26, kind: 'portal-stone', layer: 'decor' },
+      { x: 72, y: 27, kind: 'portal-stone', layer: 'decor' },
+      { x: 64, y: 31, kind: 'shrine-lantern', layer: 'decor' },
+      { x: 72, y: 31, kind: 'shrine-lantern', layer: 'decor' },
+      { x: 65, y: 34, kind: 'portal-stone', layer: 'decor' },
+      { x: 71, y: 34, kind: 'portal-stone', layer: 'decor' },
+      { x: 62, y: 27, kind: 'willow-tree', layer: 'foreground' },
+      { x: 74, y: 27, kind: 'willow-tree', layer: 'foreground' },
+      { x: 62, y: 35, kind: 'mega-tree', layer: 'foreground' },
+      { x: 74, y: 35, kind: 'mega-tree', layer: 'foreground' },
+      { x: 66, y: 26, kind: 'reeds', layer: 'decor' },
+      { x: 70, y: 26, kind: 'reeds', layer: 'decor' },
+      { x: 64, y: 33, kind: 'grass', layer: 'decor' },
+      { x: 72, y: 33, kind: 'grass', layer: 'decor' },
     ],
   },
 ];
@@ -107,27 +146,29 @@ const AMBIENT_ITEMS = [
   { x: 41, y: 22, kind: 'foliage-sway' },
   { x: 48, y: 19, kind: 'foliage-sway' },
   { x: 55, y: 16, kind: 'foliage-sway' },
-  { x: 60, y: 12, kind: 'torch-fx' },
-  { x: 63, y: 12, kind: 'torch-fx' },
-  { x: 66, y: 11, kind: 'torch-fx' },
-  { x: 33, y: 10, kind: 'water-loop' },
-  { x: 36, y: 12, kind: 'water-loop' },
-  { x: 30, y: 14, kind: 'water-loop' },
+  { x: 64, y: 31, kind: 'torch-fx' },
+  { x: 72, y: 31, kind: 'torch-fx' },
+  { x: 66, y: 34, kind: 'torch-fx' },
+  { x: 70, y: 34, kind: 'torch-fx' },
+  { x: 32, y: 10, kind: 'water-loop' },
+  { x: 35, y: 11, kind: 'water-loop' },
+  { x: 33, y: 13, kind: 'water-loop' },
   { x: 11, y: 38, kind: 'critter-loop' },
   { x: 24, y: 31, kind: 'critter-loop' },
   { x: 38, y: 24, kind: 'critter-loop' },
   { x: 58, y: 15, kind: 'critter-loop' },
   { x: 56, y: 10, kind: 'torch-fx' },
   { x: 61, y: 10, kind: 'torch-fx' },
-  { x: 66, y: 10, kind: 'torch-fx' },
-  { x: 71, y: 10, kind: 'torch-fx' },
+  { x: 64, y: 10, kind: 'torch-fx' },
   { x: 56, y: 16, kind: 'torch-fx' },
   { x: 61, y: 16, kind: 'torch-fx' },
   { x: 66, y: 16, kind: 'torch-fx' },
   { x: 71, y: 16, kind: 'torch-fx' },
   { x: 58, y: 13, kind: 'critter-loop' },
   { x: 64, y: 13, kind: 'critter-loop' },
-  { x: 69, y: 13, kind: 'critter-loop' },
+  { x: 70, y: 14, kind: 'critter-loop' },
+  { x: 63, y: 30, kind: 'critter-loop' },
+  { x: 73, y: 33, kind: 'critter-loop' },
 ];
 
 const LANDMARK_CELLS = [
@@ -135,33 +176,33 @@ const LANDMARK_CELLS = [
   { x: 26, y: 25, label: 'Ridge Bend' },
   { x: 40, y: 20, label: 'Creek Turn' },
   { x: 53, y: 15, label: 'Town Approach' },
-  { x: 67, y: 11, label: 'Dungeon Gate' },
+  { x: 63, y: 20, label: 'Shrine Road' },
+  { x: 68, y: 31, label: 'Dungeon Shrine' },
 ];
 
 const TOWN_NPCS = [
-  { x: 58, y: 11, role: 'blacksmith-stall', sprite: 'swordsman-idle', frame: 0, scale: 0.9, markerColor: 0xf1ba84 },
-  { x: 64, y: 11, role: 'merchant-stall', sprite: 'vampire1-idle', frame: 2, scale: 0.86, markerColor: 0xf5d483 },
-  { x: 69, y: 11, role: 'provisions-stall', sprite: 'vampire1-idle', frame: 4, scale: 0.86, markerColor: 0x9dd7ff },
-  { x: 57, y: 8, role: 'house-elder', sprite: 'vampire1-idle', frame: 1, scale: 0.84, markerColor: 0xb7f2a5 },
-  { x: 62, y: 8, role: 'scribe', sprite: 'swordsman-idle', frame: 1, scale: 0.88, markerColor: 0xd5c8ff },
-  { x: 71, y: 8, role: 'gate-watch', sprite: 'swordsman-idle', frame: 3, scale: 0.9, markerColor: 0xff9b9b },
-  { x: 57, y: 17, role: 'inn-host', sprite: 'vampire1-idle', frame: 0, scale: 0.84, markerColor: 0xbde0ff },
-  { x: 63, y: 17, role: 'guard-captain', sprite: 'swordsman-idle', frame: 2, scale: 0.9, markerColor: 0xffbcbc },
-  { x: 70, y: 17, role: 'healer', sprite: 'plant1-idle', frame: 0, scale: 0.68, markerColor: 0xaff3c2 },
-  { x: 67, y: 14, role: 'pet-keeper', sprite: 'slime-idle', frame: 0, scale: 0.46, markerColor: 0x9ef0f0 },
+  { x: 58, y: 11, role: 'blacksmith-stall', sprite: 'swordsman-idle', frame: 0, scale: 1.18, markerColor: 0xf1ba84 },
+  { x: 64, y: 11, role: 'merchant-stall', sprite: 'vampire1-idle', frame: 2, scale: 1.12, markerColor: 0xf5d483 },
+  { x: 69, y: 11, role: 'provisions-stall', sprite: 'vampire1-idle', frame: 4, scale: 1.12, markerColor: 0x9dd7ff },
+  { x: 57, y: 8, role: 'house-elder', sprite: 'vampire1-idle', frame: 1, scale: 1.08, markerColor: 0xb7f2a5 },
+  { x: 62, y: 8, role: 'scribe', sprite: 'swordsman-idle', frame: 1, scale: 1.16, markerColor: 0xd5c8ff },
+  { x: 71, y: 8, role: 'gate-watch', sprite: 'swordsman-idle', frame: 3, scale: 1.18, markerColor: 0xff9b9b },
+  { x: 57, y: 17, role: 'inn-host', sprite: 'vampire1-idle', frame: 0, scale: 1.08, markerColor: 0xbde0ff },
+  { x: 63, y: 17, role: 'guard-captain', sprite: 'swordsman-idle', frame: 2, scale: 1.18, markerColor: 0xffbcbc },
+  { x: 70, y: 17, role: 'healer', sprite: 'plant1-idle', frame: 0, scale: 0.94, markerColor: 0xaff3c2 },
+  { x: 70, y: 14, role: 'pet-keeper', sprite: 'slime-idle', frame: 0, scale: 0.72, markerColor: 0x9ef0f0 },
+  { x: 66, y: 29, role: 'shrine-keeper', sprite: 'plant1-idle', frame: 1, scale: 0.94, markerColor: 0xb8ffa8 },
 ];
 
 const HOUSE_BLOCKS = [
   { x: 55, y: 7, w: 3, h: 2 },
-  { x: 60, y: 7, w: 3, h: 2 },
-  { x: 66, y: 8, w: 4, h: 3 },
-  { x: 70, y: 7, w: 3, h: 2 },
+  { x: 64, y: 7, w: 5, h: 3 },
+  { x: 72, y: 7, w: 3, h: 2 },
   { x: 55, y: 18, w: 3, h: 2 },
-  { x: 61, y: 18, w: 3, h: 2 },
-  { x: 69, y: 18, w: 3, h: 2 },
-  { x: 57, y: 12, w: 2, h: 1 },
-  { x: 63, y: 12, w: 2, h: 1 },
-  { x: 68, y: 12, w: 2, h: 1 },
+  { x: 63, y: 18, w: 3, h: 2 },
+  { x: 71, y: 18, w: 3, h: 2 },
+  { x: 59, y: 12, w: 2, h: 1 },
+  { x: 68, y: 13, w: 2, h: 1 },
 ];
 
 function createGrid(defaultTile = GROUND_FIELD) {
@@ -312,10 +353,16 @@ function createGroundGrid() {
   carveRect(ground, 59, 8, 2, 12, GROUND_PATH);
   carveRect(ground, 66, 8, 2, 12, GROUND_PATH);
   carveRect(ground, 60, 12, 7, 3, GROUND_PATH);
+  carveRect(ground, 62, 10, 7, 3, GROUND_PATH);
+  carveRect(ground, 63, 19, 3, 9, GROUND_PATH);
+  carveRect(ground, 66, 26, 5, 9, GROUND_PATH);
+  carveRect(ground, 64, 29, 9, 5, GROUND_PATH);
 
-  // Creek off the main path for depth and ambient loops.
-  fillRect(ground, 29, 9, 10, 2, GROUND_WATER);
-  fillRect(ground, 30, 11, 7, 4, GROUND_WATER);
+  for (const cell of POND_CELLS) {
+    if (inBounds(cell.x, cell.y)) {
+      ground[cell.y][cell.x] = GROUND_WATER;
+    }
+  }
 
   carvePath(ground, CRITICAL_PATH_POINTS, 2);
   addPathTransitions(ground);
@@ -434,12 +481,13 @@ export function createOverworldLayout() {
     worldHeight: ROWS * TILE_SIZE,
     spawnWorld: toWorld(SPAWN_CELL.x, SPAWN_CELL.y),
     dungeonEntryWorld: toWorld(DUNGEON_ENTRY_CELL.x, DUNGEON_ENTRY_CELL.y),
-    dungeonEntryZoneSize: { width: TILE_SIZE * 3, height: TILE_SIZE * 3 },
+    dungeonEntryZoneSize: { width: TILE_SIZE * 5, height: TILE_SIZE * 5 },
     ground,
     blocked,
     decorItems,
     decorClusters: BASE_DECOR_CLUSTERS,
     ambientItems,
+    pondCells: POND_CELLS,
     townNpcs: TOWN_NPCS,
     landmarks: LANDMARK_CELLS,
     criticalPathCells,

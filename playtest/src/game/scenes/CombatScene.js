@@ -245,9 +245,18 @@ export class CombatScene extends Phaser.Scene {
     this.returning = true;
 
     if (this.result === 'victory') {
+      const defeatedEnemyIds = [...(this.returnContext.layoutState?.defeatedEnemyIds ?? [])];
+      const defeatedEnemyId = this.returnContext.defeatedEnemyId;
+      if (defeatedEnemyId && !defeatedEnemyIds.includes(defeatedEnemyId)) {
+        defeatedEnemyIds.push(defeatedEnemyId);
+      }
+
+      const enemyCount = this.returnContext.layoutState?.enemyCount ?? defeatedEnemyIds.length;
       const nextLayoutState = {
         ...this.returnContext.layoutState,
-        encounterCompleted: true,
+        defeatedEnemyIds,
+        enemyCount,
+        encounterCompleted: enemyCount > 0 && defeatedEnemyIds.length >= enemyCount,
       };
 
       this.scene.start('dungeon', {
@@ -256,7 +265,7 @@ export class CombatScene extends Phaser.Scene {
         layoutState: nextLayoutState,
         spawnX: this.returnContext.dungeonSpawnX,
         spawnY: this.returnContext.dungeonSpawnY,
-        completionStatus: 'complete',
+        completionStatus: nextLayoutState.encounterCompleted ? 'complete' : 'incomplete',
         combatResult: 'victory',
       });
 

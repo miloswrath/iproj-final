@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { DeveloperModeController } from '../editor/DeveloperModeController';
 import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
+import curatedDungeonPool from '../data/dungeons/curatedDungeonPool.json';
+import { buildDungeonLayoutsFromBlueprints } from '../dungeonPoolBuilder';
 
 const TILE_SIZE = 40;
 const TILE_SCALE = TILE_SIZE / 16;
@@ -14,31 +16,172 @@ const GRID_OFFSET_Y = 0;
 const WALK_SPEED = 180;
 const SPRINT_MULTIPLIER = 1.85;
 const HUD_DEPTH = 10000;
+const ENEMY_DEPTH_OFFSET = 12;
 
 const ROOM_MIN_COUNT = 8;
 const ROOM_MAX_COUNT = 12;
 const ROOM_MIN_SIZE = 4;
 const ROOM_MAX_SIZE = 8;
 
-const FLOOR_FRAMES = [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35];
-const UNDEAD_FLOOR_FRAMES = [0, 1, 2, 3, 4, 5, 31, 32, 33, 34, 35, 36, 62, 63, 64, 65, 66, 67];
-const WALL_FRAMES = [0, 1, 2, 3, 4, 5, 6, 7];
+const CLASSIC_FLOOR_COLORS = [0x1b2230, 0x202837, 0x222a3a, 0x1d2633];
+const UNDEAD_FLOOR_COLORS = [0x1c2420, 0x202a24, 0x242c25, 0x1b211d];
+const CLASSIC_WALL_COLORS = [0x3d425b, 0x454a66, 0x383d55, 0x4a4f6b];
+const UNDEAD_WALL_COLORS = [0x394338, 0x414c3f, 0x333d34, 0x475243];
+const FLOOR_CRACK_FRAMES = [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35];
 
 const ROOM_THEMES = [
-  { name: 'storage', frames: [8, 9, 10, 11, 12, 13, 14, 15, 28, 29, 30, 31, 32, 33, 34] },
-  { name: 'workshop', frames: [16, 17, 18, 19, 20, 21, 22, 23, 35, 36, 37, 38, 39] },
-  { name: 'crypt', frames: [40, 41, 42, 43, 44, 45, 46, 47, 48, 49] },
-  { name: 'supply', frames: [50, 51, 52, 53, 54, 55, 56, 57, 58, 59] },
+  { name: 'storage', anchorFrames: [21, 22, 23], sideFrames: [34, 35, 36], accentFrames: [42, 43] },
+  { name: 'workshop', anchorFrames: [18, 19, 20], sideFrames: [37, 38, 39], accentFrames: [44, 45] },
+  { name: 'supply', anchorFrames: [21, 22, 23], sideFrames: [34, 35, 46, 47], accentFrames: [42, 43] },
 ];
 
-const CORRIDOR_PROP_FRAMES = [60, 61, 62, 63, 64, 65, 66, 67, 68, 69];
-const UNDEAD_PROP_FRAMES = [120, 121, 122, 123, 124, 125, 126, 127, 160, 161, 162, 163, 164, 165];
+const FIRE_VARIANT_COUNT = 4;
+const FIRE_FRAMES_PER_VARIANT = 6;
 
-const ENCOUNTER_STEP_MIN = 6;
-const ENCOUNTER_STEP_GUARANTEE = 30;
-const ENCOUNTER_CHANCE = 0.11;
+const FALLBACK_DUNGEON_POOL_SIZE = 3;
+const ACTIVE_CURATED_DUNGEON_COUNT = 5;
+const ENEMY_LINE_OF_SIGHT_CELLS = 8;
+const ENEMY_CHASE_SPEED = 120;
+const ENEMY_COUNT_MIN = 2;
+const ENEMY_COUNT_MAX = 4;
 
-const FIXED_ENEMY = { name: 'Green Slime', maxHp: 24, attack: 6, spriteKey: 'slime-idle' };
+const DIGIT_KEY_CODES = new Map([
+  [Phaser.Input.Keyboard.KeyCodes.ZERO, 0],
+  [Phaser.Input.Keyboard.KeyCodes.ONE, 1],
+  [Phaser.Input.Keyboard.KeyCodes.TWO, 2],
+  [Phaser.Input.Keyboard.KeyCodes.THREE, 3],
+  [Phaser.Input.Keyboard.KeyCodes.FOUR, 4],
+  [Phaser.Input.Keyboard.KeyCodes.FIVE, 5],
+  [Phaser.Input.Keyboard.KeyCodes.SIX, 6],
+  [Phaser.Input.Keyboard.KeyCodes.SEVEN, 7],
+  [Phaser.Input.Keyboard.KeyCodes.EIGHT, 8],
+  [Phaser.Input.Keyboard.KeyCodes.NINE, 9],
+]);
+
+const DUNGEON_OBJECT_GROUPS = {
+  crates: { kind: 'crate', frames: [0, 1, 2] },
+  vessels: { kind: 'vessel', frames: [0, 1, 2] },
+  debris: { kind: 'debris', frames: [0, 1, 2] },
+  treasure: { texture: 'dungeon-chests-doors', frames: [20, 21, 22, 23, 24], scale: 1.45 },
+  chains: { texture: 'dungeon-chests-doors', frames: [25, 26, 27], scale: 1.2, yOffset: 4 },
+  spikeTraps: { texture: 'dungeon-trap-anim', frames: [6, 7, 8, 9, 10, 11], scale: 0.72, yOffset: 1, shadow: false },
+  floorGrates: { texture: 'dungeon-trap-anim', frames: [0, 1, 2, 3, 4, 5], scale: 0.72, yOffset: 1, shadow: false },
+};
+
+const UNDEAD_LARGE_GROUPS = {
+  ruins: { kind: 'ruin', frames: [0, 1, 2] },
+  bones: { kind: 'bones', frames: [0, 1, 2] },
+  graves: { kind: 'grave', frames: [0, 1, 2] },
+  roots: { kind: 'roots', frames: [0, 1, 2] },
+  skullIdols: { kind: 'skullIdol', frames: [0, 1, 2] },
+};
+
+const ENEMY_TYPES = [
+  { name: 'Green Slime', maxHp: 24, attack: 6, spriteKey: 'slime-idle', scale: 1.05 },
+  { name: 'Spore Plant', maxHp: 28, attack: 7, spriteKey: 'plant1-idle', scale: 1.05 },
+  { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle', scale: 1.0 },
+];
+
+const DEFAULT_VISUAL_PROFILE = {
+  floorColors: CLASSIC_FLOOR_COLORS,
+  wallColors: CLASSIC_WALL_COLORS,
+  highlight: 0x666b8a,
+  shadow: 0x20243a,
+  roomGlow: 0x94b2d6,
+  crackTint: 0x8990aa,
+  crackAlpha: 0.25,
+  roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.debris],
+  corridorGroup: DUNGEON_OBJECT_GROUPS.debris,
+  torchMode: 'corners',
+  torchEveryRoom: false,
+  torchColor: 0xffb866,
+  trapEvery: 0,
+  decorDensity: 1,
+};
+
+const DUNGEON_VISUAL_PROFILES = {
+  'atrium-chain': {
+    ...DEFAULT_VISUAL_PROFILE,
+    roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.treasure],
+    corridorGroup: DUNGEON_OBJECT_GROUPS.debris,
+    torchMode: 'north-corners',
+    torchEveryRoom: false,
+    torchColor: 0xffb45c,
+    trapEvery: 0,
+    decorDensity: 0.75,
+  },
+  'sundered-halls': {
+    floorColors: [0x19231f, 0x1e2a24, 0x222f27, 0x1b2520],
+    wallColors: [0x35433a, 0x3d4b40, 0x2d3933, 0x455346],
+    highlight: 0x667663,
+    shadow: 0x18211c,
+    roomGlow: 0x86b98c,
+    crackTint: 0x7d927c,
+    crackAlpha: 0.2,
+    roomGroups: [UNDEAD_LARGE_GROUPS.roots, UNDEAD_LARGE_GROUPS.ruins],
+    corridorGroup: UNDEAD_LARGE_GROUPS.roots,
+    torchMode: 'none',
+    torchEveryRoom: false,
+    torchColor: 0x9be68c,
+    trapEvery: 0,
+    decorDensity: 0.55,
+  },
+  'ring-galleries': {
+    floorColors: [0x20223a, 0x252743, 0x2a2c4b, 0x1d2035],
+    wallColors: [0x47476f, 0x505078, 0x3f4167, 0x595982],
+    highlight: 0x7d7eaa,
+    shadow: 0x242642,
+    roomGlow: 0xc2b3ff,
+    crackTint: 0xa9a4d9,
+    crackAlpha: 0.26,
+    roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels],
+    treasureGroup: DUNGEON_OBJECT_GROUPS.treasure,
+    corridorGroup: DUNGEON_OBJECT_GROUPS.chains,
+    decorStyle: 'gallery',
+    torchMode: 'symmetry',
+    torchEveryRoom: true,
+    torchColor: 0xd9c0ff,
+    trapGroup: DUNGEON_OBJECT_GROUPS.floorGrates,
+    trapEvery: 4,
+    decorDensity: 0.7,
+  },
+  'split-sanctum': {
+    floorColors: [0x241b1d, 0x2d2022, 0x332428, 0x20191c],
+    wallColors: [0x4a3439, 0x563b41, 0x432f35, 0x60454a],
+    highlight: 0x856267,
+    shadow: 0x25191d,
+    roomGlow: 0xd48c85,
+    crackTint: 0xb58682,
+    crackAlpha: 0.22,
+    roomGroups: [UNDEAD_LARGE_GROUPS.graves, UNDEAD_LARGE_GROUPS.skullIdols],
+    corridorGroup: UNDEAD_LARGE_GROUPS.bones,
+    torchMode: 'bone-altars',
+    torchEveryRoom: false,
+    torchColor: 0xff8d72,
+    trapEvery: 0,
+    decorDensity: 0.55,
+  },
+  'lantern-way': {
+    floorColors: [0x272318, 0x302a1d, 0x352d20, 0x242116],
+    wallColors: [0x5a4b35, 0x65553c, 0x4f422f, 0x6d5c42],
+    highlight: 0x9d875e,
+    shadow: 0x2b2419,
+    roomGlow: 0xffd181,
+    crackTint: 0xd1b076,
+    crackAlpha: 0.24,
+    roomGroups: [DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.crates],
+    treasureGroup: DUNGEON_OBJECT_GROUPS.treasure,
+    corridorGroup: DUNGEON_OBJECT_GROUPS.debris,
+    torchMode: 'lantern-path',
+    torchEveryRoom: true,
+    torchColor: 0xffd06c,
+    trapEvery: 0,
+    decorDensity: 0.65,
+  },
+};
+
+let dungeonLayoutPool = [];
+let dungeonPoolCursor = 0;
 
 export class DungeonScene extends Phaser.Scene {
   constructor() {
@@ -53,12 +196,21 @@ export class DungeonScene extends Phaser.Scene {
 
     this.generateKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.qKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    this.prevDungeonKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.OPEN_BRACKET);
+    this.nextDungeonKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CLOSED_BRACKET);
+    this.digitKeys = [...DIGIT_KEY_CODES.keys()].map((code) => this.input.keyboard.addKey(code));
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.keys = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,S,A,D');
+    this.dungeonNumberBuffer = '';
+    this.dungeonNumberBufferTimer = null;
+    this.combatStarting = false;
 
-    this.layoutState = data?.layoutState ? data.layoutState : this.generateDungeonLayout();
+    this.layoutState = data?.layoutState ? data.layoutState : this.pickDungeonLayoutFromPool(data?.dungeonIndex);
     this.tileTheme = this.layoutState.tileTheme ?? 'classic';
+    this.layoutSeed = this.computeLayoutSeed(this.layoutState.id ?? this.layoutState.name ?? 'dungeon');
+    this.visualProfile = this.getVisualProfile(this.layoutState);
+    this.ensureFireAnimations();
 
     this.createBackground();
     this.renderLayout(this.layoutState);
@@ -70,10 +222,10 @@ export class DungeonScene extends Phaser.Scene {
 
     this.createPlayerAnimations();
     this.lastDirection = 'down';
-    this.stepsSinceEncounterRoll = 0;
     this.lastCellKey = this.getPlayerCellKey();
 
     this.physics.add.collider(this.player, this.obstacles);
+    this.spawnRoamingEnemies();
     this.addInstructionHud();
     this.updateEncounterUi();
     this.devModeController = new DeveloperModeController(this, {
@@ -83,7 +235,7 @@ export class DungeonScene extends Phaser.Scene {
       rows: GRID_ROWS,
       worldWidth: DUNGEON_WIDTH,
       worldHeight: DUNGEON_HEIGHT,
-      registry: loadDevAssetRegistry('dungeon'),
+      registry: loadDevAssetRegistry('dungeon', this.textures),
     });
   }
 
@@ -111,7 +263,7 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     this.add
-      .text(16, 40, 'R regenerate layout | Q return overworld', {
+      .text(16, 40, 'R next layout | [/] swap dungeon | type dungeon number | Q return overworld', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#c9ddff',
@@ -132,8 +284,19 @@ export class DungeonScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
 
+    this.layoutLabel = this.add
+      .text(16, 96, '', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffdca6',
+        backgroundColor: '#0000009b',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH);
+
     this.add
-      .text(16, 96, 'Random encounters can trigger while exploring rooms/corridors', {
+      .text(16, 124, 'Roaming enemies chase when they see you in a straight hall/room line', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffe7a3',
@@ -145,12 +308,20 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   updateEncounterUi() {
+    const layoutId = this.layoutState.id ?? 'generated';
+    const layoutName = this.layoutState.name ?? 'Generated Dungeon';
+    const dungeonNumber = (this.layoutState.poolIndex ?? 0) + 1;
+    const total = this.getDungeonPoolSize();
+    this.layoutLabel.setText(`Dungeon ${dungeonNumber}/${total}: ${layoutName} [${layoutId}]`);
+
     if (this.layoutState.encounterCompleted) {
-      this.statusLabel.setText('Encounter complete: return to overworld or regenerate.');
+      this.statusLabel.setText('Dungeon cleared: return to overworld or switch layouts.');
       return;
     }
 
-    this.statusLabel.setText('Explore dungeon rooms. Encounter may trigger at random.');
+    const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
+    const totalEnemies = this.layoutState.enemyCount ?? 0;
+    this.statusLabel.setText(`Roaming enemies: ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} active.`);
   }
 
   spawnPlayer(spawnX, spawnY) {
@@ -164,24 +335,17 @@ export class DungeonScene extends Phaser.Scene {
     this.obstacles = this.physics.add.staticGroup();
     this.decorTaken = new Set([`${layoutState.spawnCell.x},${layoutState.spawnCell.y}`]);
     this.floorCellSet = new Set(layoutState.floorCells.map((cell) => `${cell.x},${cell.y}`));
+    this.renderedWallCells = new Set();
 
     for (const floorCell of layoutState.floorCells) {
-      const center = this.cellToWorld(floorCell.x, floorCell.y);
-      const floorFrames = this.tileTheme === 'undead' ? UNDEAD_FLOOR_FRAMES : FLOOR_FRAMES;
-      const floorKey = this.tileTheme === 'undead' ? 'undead-ground-tiles' : 'dungeon-floor-tiles';
-      const floorFrame = Phaser.Utils.Array.GetRandom(floorFrames);
-      this.add
-        .image(center.x, center.y, floorKey, floorFrame)
-        .setScale(TILE_SCALE)
-        .setAlpha(0.95)
-        .setDepth(0);
+      this.renderFloorCell(floorCell.x, floorCell.y);
     }
 
     for (const room of layoutState.rooms) {
       const roomCenter = this.cellToWorld(room.x + room.w / 2 - 0.5, room.y + room.h / 2 - 0.5);
       this.add
-        .rectangle(roomCenter.x, roomCenter.y, room.w * TILE_SIZE, room.h * TILE_SIZE, 0x94b2d6, 0.04)
-        .setStrokeStyle(1, 0xa7c4e5, 0.2)
+        .rectangle(roomCenter.x, roomCenter.y, room.w * TILE_SIZE, room.h * TILE_SIZE, this.visualProfile.roomGlow, 0.04)
+        .setStrokeStyle(1, this.visualProfile.roomGlow, 0.18)
         .setDepth(1);
     }
 
@@ -189,97 +353,669 @@ export class DungeonScene extends Phaser.Scene {
     this.renderCorridorDecor(layoutState.floorCells);
 
     for (const blocker of layoutState.blockers) {
-      const center = this.cellToWorld(blocker.x, blocker.y);
-      const wallFrame = Phaser.Utils.Array.GetRandom(WALL_FRAMES);
-      const wall = this.add
-        .image(center.x, center.y, 'dungeon-wall-tiles', wallFrame)
-        .setScale(TILE_SCALE)
-        .setAlpha(0.98)
-        .setDepth(center.y + 20);
-
-      this.physics.add.existing(wall, true);
-      this.obstacles.add(wall);
+      this.createCollisionCell(blocker.x, blocker.y);
+      if (this.isWallVisible(blocker.x, blocker.y)) {
+        this.renderWallCell(blocker.x, blocker.y);
+      }
     }
   }
 
+  renderFloorCell(cellX, cellY) {
+    const center = this.cellToWorld(cellX, cellY);
+    const colors = this.visualProfile.floorColors;
+    const hash = this.cellHash(cellX, cellY, 31);
+    const color = colors[hash % colors.length];
+
+    this.add
+      .rectangle(center.x, center.y, TILE_SIZE, TILE_SIZE, color, 1)
+      .setStrokeStyle(1, 0x0d1118, 0.28)
+      .setDepth(0);
+
+    if (hash % 5 === 0) {
+      const frame = FLOOR_CRACK_FRAMES[hash % FLOOR_CRACK_FRAMES.length];
+      this.add
+        .image(center.x, center.y, 'dungeon-floor-tiles', frame)
+        .setScale(TILE_SCALE)
+        .setAlpha(this.visualProfile.crackAlpha)
+        .setTint(this.visualProfile.crackTint)
+        .setDepth(2);
+    }
+  }
+
+  renderWallCell(cellX, cellY) {
+    const center = this.cellToWorld(cellX, cellY);
+    const key = `${cellX},${cellY}`;
+    if (this.renderedWallCells.has(key)) {
+      return;
+    }
+
+    this.renderedWallCells.add(key);
+
+    const colors = this.visualProfile.wallColors;
+    const hash = this.cellHash(cellX, cellY, 79);
+    const color = colors[hash % colors.length];
+    const topHighlight = this.visualProfile.highlight;
+    const shadow = this.visualProfile.shadow;
+
+    this.add
+      .rectangle(center.x, center.y, TILE_SIZE, TILE_SIZE, color, 1)
+      .setStrokeStyle(1, shadow, 0.75)
+      .setDepth(center.y + 16);
+
+    this.add
+      .rectangle(center.x, center.y - TILE_SIZE * 0.3, TILE_SIZE - 5, 5, topHighlight, 0.28)
+      .setDepth(center.y + 17);
+
+    if (hash % 4 === 0) {
+      this.add
+        .rectangle(center.x + ((hash % 3) - 1) * 4, center.y + 3, 4, 10, shadow, 0.3)
+        .setDepth(center.y + 18);
+    }
+  }
+
+  createCollisionCell(cellX, cellY) {
+    const center = this.cellToWorld(cellX, cellY);
+    const blocker = this.add.zone(center.x, center.y, TILE_SIZE, TILE_SIZE);
+    this.physics.add.existing(blocker, true);
+    this.obstacles.add(blocker);
+  }
+
+  isWallVisible(cellX, cellY) {
+    const neighbors = [
+      `${cellX + 1},${cellY}`,
+      `${cellX - 1},${cellY}`,
+      `${cellX},${cellY + 1}`,
+      `${cellX},${cellY - 1}`,
+      `${cellX + 1},${cellY + 1}`,
+      `${cellX - 1},${cellY + 1}`,
+      `${cellX + 1},${cellY - 1}`,
+      `${cellX - 1},${cellY - 1}`,
+    ];
+
+    return neighbors.some((key) => this.floorCellSet.has(key));
+  }
+
   renderRoomDecor(rooms) {
-    for (const room of rooms) {
-      const roomArea = room.w * room.h;
-      const decorCount = Phaser.Math.Clamp(Math.floor(roomArea * 0.11), 3, 8);
-      const theme = Phaser.Utils.Array.GetRandom(ROOM_THEMES);
+    for (let roomIndex = 0; roomIndex < rooms.length; roomIndex += 1) {
+      const room = rooms[roomIndex];
+      const themeHash = this.cellHash(room.x + roomIndex, room.y, 191);
+      const theme = ROOM_THEMES[themeHash % ROOM_THEMES.length];
 
-      let placed = 0;
-      let tries = 0;
-      while (placed < decorCount && tries < 80) {
-        tries += 1;
-
-        const minX = room.w >= 5 ? room.x + 1 : room.x;
-        const maxX = room.w >= 5 ? room.x + room.w - 2 : room.x + room.w - 1;
-        const minY = room.h >= 5 ? room.y + 1 : room.y;
-        const maxY = room.h >= 5 ? room.y + room.h - 2 : room.y + room.h - 1;
-
-        const x = Phaser.Math.Between(minX, maxX);
-        const y = Phaser.Math.Between(minY, maxY);
-        const key = `${x},${y}`;
-
-        if (!this.floorCellSet.has(key) || this.decorTaken.has(key)) {
-          continue;
-        }
-
-        this.placeDecorAtCell(x, y, Phaser.Utils.Array.GetRandom(theme.frames), 'dungeon-objects');
-        this.decorTaken.add(key);
-        placed += 1;
+      const decorDensity = this.visualProfile.decorDensity ?? 1;
+      if (decorDensity >= 0.95 || this.cellHash(room.x, room.y, 211 + roomIndex) % 100 < decorDensity * 100) {
+        this.placeRoomDecorCluster(room, theme, roomIndex);
       }
+
+      if (this.visualProfile.decorStyle !== 'gallery' && room.w >= 7 && room.h >= 7) {
+        this.placeRoomWallAccent(room, theme, roomIndex);
+      }
+
+      this.placeRoomTrap(room, roomIndex);
+
+      if (this.shouldPlaceTorchPair(roomIndex)) {
+        this.placeRoomTorchPair(room, roomIndex);
+      }
+    }
+  }
+
+  placeRoomDecorCluster(room, theme, roomIndex) {
+    if (this.visualProfile.decorStyle === 'gallery') {
+      this.placeGalleryDecor(room, roomIndex);
+      return;
+    }
+
+    const center = this.roomCenter(room);
+    const flipX = this.cellHash(room.x, room.y, 409 + roomIndex) % 2 === 0 ? 1 : -1;
+    const flipY = this.cellHash(room.y, room.x, 421 + roomIndex) % 2 === 0 ? 1 : -1;
+    const anchorX = Phaser.Math.Clamp(center.x + flipX, room.x + 1, room.x + room.w - 2);
+    const anchorY = Phaser.Math.Clamp(center.y + flipY, room.y + 1, room.y + room.h - 2);
+    const objectGroups = this.visualProfile.roomGroups;
+    const anchorGroup = objectGroups[this.cellHash(room.x, room.y, 397 + roomIndex) % objectGroups.length];
+    const pattern = [
+      { x: 0, y: 0, group: anchorGroup },
+      { x: flipX, y: 0, group: objectGroups[(roomIndex + 1) % objectGroups.length] },
+      { x: 0, y: flipY, group: objectGroups[(roomIndex + 2) % objectGroups.length] },
+    ];
+
+    for (let i = 0; i < pattern.length; i += 1) {
+      const part = pattern[i];
+      const frames = part.group.frames;
+      const frame = frames[this.cellHash(anchorX + i, anchorY, 433 + roomIndex) % frames.length];
+      this.placeDecorIfOpen(anchorX + part.x, anchorY + part.y, frame, part.group);
+    }
+  }
+
+  placeGalleryDecor(room, roomIndex) {
+    const center = this.roomCenter(room);
+    const groups = this.visualProfile.roomGroups;
+    const treasureGroup = this.visualProfile.treasureGroup;
+    const top = room.y + 1;
+    const bottom = room.y + room.h - 2;
+    const left = room.x + 1;
+    const right = room.x + room.w - 2;
+    const wallCells = [
+      { x: Phaser.Math.Clamp(center.x - 2, left, right), y: top, group: groups[1] },
+      { x: Phaser.Math.Clamp(center.x + 2, left, right), y: top, group: groups[0] },
+      { x: left, y: Phaser.Math.Clamp(center.y, top, bottom), group: groups[(roomIndex + 1) % groups.length] },
+      { x: right, y: Phaser.Math.Clamp(center.y, top, bottom), group: groups[(roomIndex + 1) % groups.length] },
+    ];
+
+    for (let i = 0; i < wallCells.length; i += 1) {
+      const cell = wallCells[i];
+      this.placeDecorIfOpen(cell.x, cell.y, this.pickFrame(cell.group, cell.x, cell.y, 811 + roomIndex), cell.group);
+    }
+
+    if (treasureGroup && roomIndex % 3 === 0) {
+      const treasureCell = roomIndex % 2 === 0
+        ? { x: Phaser.Math.Clamp(center.x + 1, left, right), y: bottom }
+        : { x: right, y: Phaser.Math.Clamp(center.y + 1, top, bottom) };
+      this.placeDecorIfOpen(
+        treasureCell.x,
+        treasureCell.y,
+        this.pickFrame(treasureGroup, treasureCell.x, treasureCell.y, 823 + roomIndex),
+        treasureGroup,
+      );
+    }
+
+    if (room.w < 6 || room.h < 6 || roomIndex % 3 !== 1) {
+      return;
+    }
+
+    const blockGroupA = groups[roomIndex % groups.length];
+    const blockGroupB = groups[(roomIndex + 1) % groups.length];
+    const blockCells = [
+      { x: center.x, y: center.y, group: blockGroupA },
+      { x: center.x + 1, y: center.y, group: blockGroupB },
+    ];
+
+    for (let i = 0; i < blockCells.length; i += 1) {
+      const cell = blockCells[i];
+      this.placeDecorIfOpen(cell.x, cell.y, this.pickFrame(cell.group, cell.x, cell.y, 829 + roomIndex), cell.group);
+    }
+  }
+
+  placeRoomWallAccent(room, theme, roomIndex) {
+    const top = room.y + 1;
+    const bottom = room.y + room.h - 2;
+    const left = room.x + 1;
+    const right = room.x + room.w - 2;
+    const horizontal = this.cellHash(room.x, room.y, 467 + roomIndex) % 2 === 0;
+    const cells = horizontal
+      ? [
+        { x: left + 1, y: top },
+        { x: right - 1, y: bottom },
+      ]
+      : [
+        { x: left, y: top + 1 },
+        { x: right, y: bottom - 1 },
+      ];
+
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i];
+      const group = this.visualProfile.roomGroups[(roomIndex + i) % this.visualProfile.roomGroups.length];
+      this.placeDecorIfOpen(cell.x, cell.y, this.pickFrame(group, cell.x, cell.y, 479 + roomIndex), group);
+    }
+  }
+
+  placeRoomTorchPair(room, roomIndex) {
+    const center = this.roomCenter(room);
+    const top = room.y + 1;
+    const bottom = room.y + room.h - 2;
+    const left = room.x + 1;
+    const right = room.x + room.w - 2;
+    let cells;
+
+    if (this.visualProfile.torchMode === 'lantern-path') {
+      cells = [
+        { x: left, y: center.y },
+        { x: right, y: center.y },
+      ];
+    } else if (this.visualProfile.torchMode === 'symmetry') {
+      cells = [
+        { x: left, y: top },
+        { x: right, y: top },
+        { x: left, y: bottom },
+        { x: right, y: bottom },
+      ];
+    } else if (this.visualProfile.torchMode === 'bone-altars') {
+      cells = [
+        { x: center.x - 1, y: bottom },
+        { x: center.x + 1, y: bottom },
+      ];
+    } else {
+      cells = [
+        { x: Phaser.Math.Clamp(center.x - 2, left, right), y: top },
+        { x: Phaser.Math.Clamp(center.x + 2, left, right), y: top },
+      ];
+    }
+
+    const roomFireVariant = (this.cellHash(room.x, room.y, 503) + roomIndex) % FIRE_VARIANT_COUNT;
+    for (let i = 0; i < cells.length; i += 1) {
+      this.placeFireIfOpen(cells[i].x, cells[i].y, roomFireVariant);
+    }
+  }
+
+  placeRoomTrap(room, roomIndex) {
+    const trapEvery = this.visualProfile.trapEvery ?? 0;
+    if (trapEvery <= 0 || roomIndex % trapEvery !== 1 || room.w < 6 || room.h < 6) {
+      return;
+    }
+
+    const trapGroup = this.visualProfile.trapGroup ?? DUNGEON_OBJECT_GROUPS.spikeTraps;
+    const center = this.roomCenter(room);
+    const horizontal = this.cellHash(room.x, room.y, 853 + roomIndex) % 2 === 0;
+    const cells = horizontal
+      ? [
+        { x: center.x - 1, y: center.y },
+        { x: center.x, y: center.y },
+        { x: center.x + 1, y: center.y },
+      ]
+      : [
+        { x: center.x, y: center.y - 1 },
+        { x: center.x, y: center.y },
+        { x: center.x, y: center.y + 1 },
+      ];
+
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i];
+      this.placeDecorIfOpen(cell.x, cell.y, this.pickFrame(trapGroup, cell.x, cell.y, 859 + i), trapGroup);
     }
   }
 
   renderCorridorDecor(floorCells) {
     const corridorCells = floorCells.filter((cell) => !this.isInsideAnyRoom(cell.x, cell.y));
-    const desired = Phaser.Math.Clamp(Math.floor(corridorCells.length * 0.02), 6, 20);
+    const propGroup = this.visualProfile.corridorGroup;
 
-    let placed = 0;
-    let tries = 0;
-    while (placed < desired && tries < 220) {
-      tries += 1;
-      const cell = Phaser.Utils.Array.GetRandom(corridorCells);
+    for (const cell of corridorCells) {
       const key = `${cell.x},${cell.y}`;
-
-      if (!cell || this.decorTaken.has(key)) {
+      if (this.decorTaken.has(key)) {
         continue;
       }
 
-      const propKey = this.tileTheme === 'undead' ? 'undead-objects' : 'dungeon-objects';
-      const propFrames = this.tileTheme === 'undead' ? UNDEAD_PROP_FRAMES : CORRIDOR_PROP_FRAMES;
-      this.placeDecorAtCell(cell.x, cell.y, Phaser.Utils.Array.GetRandom(propFrames), propKey);
-      this.decorTaken.add(key);
-      placed += 1;
+      const hash = this.cellHash(cell.x, cell.y, 337);
+      const roll = hash % 100;
+
+      const corridorChance = this.visualProfile.decorDensity < 0.75 ? 2 : 3;
+      if (roll < corridorChance) {
+        this.placeDecorIfOpen(cell.x, cell.y, this.pickFrame(propGroup, cell.x, cell.y, 337), propGroup);
+      }
     }
   }
 
-  placeDecorAtCell(cellX, cellY, frame, spriteKey) {
+  ensureFireAnimations() {
+    for (let variant = 0; variant < FIRE_VARIANT_COUNT; variant += 1) {
+      const key = `dungeon-fire-variant-${variant}`;
+      if (this.anims.exists(key)) {
+        continue;
+      }
+
+      const frames = [];
+      for (let row = 0; row < FIRE_FRAMES_PER_VARIANT; row += 1) {
+        frames.push(row * FIRE_VARIANT_COUNT + variant);
+      }
+
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers('dungeon-fire-anim', { frames }),
+        frameRate: 9,
+        repeat: -1,
+      });
+    }
+  }
+
+  placeFireAtCell(cellX, cellY, variant) {
     const center = this.cellToWorld(cellX, cellY);
+    const fireAnimKey = `dungeon-fire-variant-${variant % FIRE_VARIANT_COUNT}`;
+    const fireTint = this.visualProfile.torchColor;
+
+    this.add.ellipse(center.x, center.y + TILE_SIZE * 0.26, TILE_SIZE * 0.42, TILE_SIZE * 0.17, 0x000000, 0.22).setDepth(center.y + 9);
+    this.add.ellipse(center.x, center.y - 3, TILE_SIZE * 0.8, TILE_SIZE * 0.55, fireTint, 0.08).setDepth(3);
 
     this.add
-      .ellipse(center.x, center.y + TILE_SIZE * 0.26, TILE_SIZE * 0.6, TILE_SIZE * 0.22, 0x000000, 0.2)
-      .setDepth(center.y + 8);
+      .sprite(center.x, center.y - 6, 'dungeon-fire-anim', variant)
+      .setScale(0.72)
+      .setTint(fireTint)
+      .setDepth(center.y + 11)
+      .play(fireAnimKey);
+  }
+
+  placeFireIfOpen(cellX, cellY, variant) {
+    const key = `${cellX},${cellY}`;
+    if (!this.floorCellSet.has(key) || this.decorTaken.has(key) || key === `${this.layoutState.spawnCell.x},${this.layoutState.spawnCell.y}`) {
+      return false;
+    }
+
+    this.placeFireAtCell(cellX, cellY, variant);
+    this.decorTaken.add(key);
+    return true;
+  }
+
+  placeDecorIfOpen(cellX, cellY, frame, decorGroupOrKey) {
+    const key = `${cellX},${cellY}`;
+    if (!this.floorCellSet.has(key) || this.decorTaken.has(key) || key === `${this.layoutState.spawnCell.x},${this.layoutState.spawnCell.y}`) {
+      return false;
+    }
+
+    this.placeDecorAtCell(cellX, cellY, frame, decorGroupOrKey);
+    this.decorTaken.add(key);
+    return true;
+  }
+
+  placeDecorAtCell(cellX, cellY, frame, decorGroupOrKey) {
+    const center = this.cellToWorld(cellX, cellY);
+    const decorGroup = typeof decorGroupOrKey === 'string'
+      ? { texture: decorGroupOrKey, scale: TILE_SCALE, yOffset: 0 }
+      : decorGroupOrKey;
+
+    if (decorGroup.kind) {
+      this.placeProceduralDecorAtCell(center, decorGroup.kind, frame);
+      return;
+    }
+
+    const scale = decorGroup.scale ?? TILE_SCALE;
+    const yOffset = decorGroup.yOffset ?? 0;
+
+    if (decorGroup.shadow !== false) {
+      this.add
+        .ellipse(center.x, center.y + TILE_SIZE * 0.26, TILE_SIZE * 0.6, TILE_SIZE * 0.22, 0x000000, 0.2)
+        .setDepth(center.y + 8);
+    }
 
     this.add
-      .image(center.x, center.y, spriteKey, frame)
-      .setScale(TILE_SCALE)
+      .image(center.x, center.y + yOffset, decorGroup.texture, frame)
+      .setScale(scale)
       .setDepth(center.y + 10);
+  }
+
+  placeProceduralDecorAtCell(center, kind, variant = 0) {
+    const depth = center.y + 10;
+    this.add
+      .ellipse(center.x, center.y + TILE_SIZE * 0.26, TILE_SIZE * 0.58, TILE_SIZE * 0.2, 0x000000, 0.22)
+      .setDepth(depth - 2);
+
+    switch (kind) {
+      case 'crate':
+        this.drawCrateDecor(center, variant, depth);
+        break;
+      case 'vessel':
+        this.drawVesselDecor(center, variant, depth);
+        break;
+      case 'debris':
+        this.drawDebrisDecor(center, variant, depth);
+        break;
+      case 'ruin':
+        this.drawRuinDecor(center, variant, depth);
+        break;
+      case 'bones':
+        this.drawBoneDecor(center, variant, depth);
+        break;
+      case 'grave':
+        this.drawGraveDecor(center, variant, depth);
+        break;
+      case 'roots':
+        this.drawRootsDecor(center, variant, depth);
+        break;
+      case 'skullIdol':
+        this.drawSkullIdolDecor(center, variant, depth);
+        break;
+      default:
+        this.drawDebrisDecor(center, variant, depth);
+        break;
+    }
+  }
+
+  drawCrateDecor(center, variant, depth) {
+    const width = variant === 1 ? 24 : 21;
+    const height = variant === 2 ? 18 : 22;
+    const x = center.x;
+    const y = center.y + 4;
+    this.add.rectangle(x, y, width, height, 0x8a5c38, 1).setStrokeStyle(2, 0x3f2a1d, 0.85).setDepth(depth);
+    this.add.rectangle(x, y - height * 0.18, width - 3, 3, 0xc08a52, 0.7).setDepth(depth + 1);
+    this.add.rectangle(x, y, 3, height - 3, 0x5b3927, 0.72).setDepth(depth + 1);
+    if (variant === 2) {
+      this.add.rectangle(x, y, width - 4, 3, 0x3f2a1d, 0.55).setRotation(0.65).setDepth(depth + 1);
+    }
+  }
+
+  drawVesselDecor(center, variant, depth) {
+    const color = [0x7a5a8c, 0x6f704f, 0x8b6a4a][variant % 3];
+    const rim = [0xb49bc9, 0xa8aa7d, 0xc6976d][variant % 3];
+    this.add.ellipse(center.x, center.y + 7, 18, 22, color, 1).setStrokeStyle(2, 0x2d2431, 0.78).setDepth(depth);
+    this.add.rectangle(center.x, center.y - 4, 10, 7, color, 1).setStrokeStyle(2, 0x2d2431, 0.72).setDepth(depth + 1);
+    this.add.ellipse(center.x, center.y - 8, 14, 5, rim, 0.85).setDepth(depth + 2);
+    if (variant === 0) {
+      this.add.ellipse(center.x + 11, center.y + 4, 8, 11, 0x59425f, 1).setStrokeStyle(2, 0x2d2431, 0.7).setDepth(depth);
+    }
+  }
+
+  drawDebrisDecor(center, variant, depth) {
+    const offset = variant - 1;
+    this.add.rectangle(center.x - 7, center.y + 9, 15, 5, 0x6f4a34, 1).setStrokeStyle(1, 0x2b2018, 0.8).setRotation(-0.25).setDepth(depth);
+    this.add.rectangle(center.x + 7, center.y + 7 + offset, 12, 5, 0x8a674a, 1).setStrokeStyle(1, 0x2b2018, 0.75).setRotation(0.35).setDepth(depth + 1);
+    this.add.ellipse(center.x + offset * 4, center.y + 12, 8, 5, 0x29241d, 0.55).setDepth(depth - 1);
+  }
+
+  drawRuinDecor(center, variant, depth) {
+    const stone = [0x687064, 0x58645c, 0x727064][variant % 3];
+    this.add.rectangle(center.x - 5, center.y + 5, 13, 28, stone, 1).setStrokeStyle(2, 0x2c342f, 0.8).setDepth(depth);
+    this.add.rectangle(center.x + 8, center.y + 12, 11, 15, 0x4b554e, 1).setStrokeStyle(2, 0x2c342f, 0.8).setDepth(depth);
+    this.add.rectangle(center.x - 4, center.y - 11, 18, 5, 0x879084, 0.85).setDepth(depth + 1);
+  }
+
+  drawBoneDecor(center, variant, depth) {
+    const bone = 0xb9b79f;
+    this.add.rectangle(center.x - 3, center.y + 7, 22, 4, bone, 1).setRotation(0.42 + variant * 0.15).setDepth(depth);
+    this.add.ellipse(center.x - 12, center.y + 2, 6, 6, bone, 1).setDepth(depth + 1);
+    this.add.ellipse(center.x + 10, center.y + 12, 6, 6, bone, 1).setDepth(depth + 1);
+    this.add.ellipse(center.x + 3, center.y + 5, 7, 5, 0xd1cdb4, 0.9).setDepth(depth + 2);
+  }
+
+  drawGraveDecor(center, variant, depth) {
+    const stone = [0x687066, 0x74736c, 0x5f6962][variant % 3];
+    this.add.ellipse(center.x, center.y - 5, 18, 15, stone, 1).setStrokeStyle(2, 0x29312d, 0.85).setDepth(depth);
+    this.add.rectangle(center.x, center.y + 6, 18, 24, stone, 1).setStrokeStyle(2, 0x29312d, 0.85).setDepth(depth + 1);
+    this.add.rectangle(center.x, center.y + 1, 8, 2, 0x2f3834, 0.8).setDepth(depth + 2);
+  }
+
+  drawRootsDecor(center, variant, depth) {
+    const graphics = this.add.graphics().setDepth(depth);
+    graphics.lineStyle(4, 0x3e4a37, 0.95);
+    graphics.beginPath();
+    graphics.moveTo(center.x - 12, center.y + 10);
+    graphics.lineTo(center.x - 3, center.y + 3);
+    graphics.lineTo(center.x + 7, center.y + 11);
+    graphics.strokePath();
+    graphics.lineStyle(3, variant === 1 ? 0x6fa267 : 0x546647, 0.88);
+    graphics.beginPath();
+    graphics.moveTo(center.x - 2, center.y + 7);
+    graphics.lineTo(center.x + 12, center.y + 1);
+    graphics.strokePath();
+  }
+
+  drawSkullIdolDecor(center, variant, depth) {
+    const base = variant === 2 ? 0x5e655a : 0x70776c;
+    this.add.rectangle(center.x, center.y + 10, 19, 12, 0x4a5149, 1).setStrokeStyle(2, 0x252c28, 0.8).setDepth(depth);
+    this.add.ellipse(center.x, center.y - 2, 18, 20, base, 1).setStrokeStyle(2, 0x252c28, 0.85).setDepth(depth + 1);
+    this.add.ellipse(center.x - 4, center.y - 3, 3, 4, 0x18201c, 1).setDepth(depth + 2);
+    this.add.ellipse(center.x + 4, center.y - 3, 3, 4, 0x18201c, 1).setDepth(depth + 2);
+    this.add.rectangle(center.x, center.y + 5, 7, 2, 0x18201c, 0.85).setDepth(depth + 2);
+  }
+
+  pickFrame(group, cellX, cellY, salt = 0) {
+    return group.frames[this.cellHash(cellX, cellY, salt) % group.frames.length];
+  }
+
+  shouldPlaceTorchPair(roomIndex) {
+    if (this.visualProfile.torchMode === 'none') {
+      return false;
+    }
+
+    return this.visualProfile.torchEveryRoom || roomIndex % 2 === 0;
+  }
+
+  getVisualProfile(layoutState) {
+    const profile = DUNGEON_VISUAL_PROFILES[layoutState.id];
+    if (profile) {
+      return profile;
+    }
+
+    return layoutState.tileTheme === 'undead'
+      ? {
+        ...DEFAULT_VISUAL_PROFILE,
+        floorColors: UNDEAD_FLOOR_COLORS,
+        wallColors: UNDEAD_WALL_COLORS,
+        highlight: 0x6d7969,
+        shadow: 0x1d251f,
+        roomGlow: 0x86b98c,
+        crackTint: 0x8c927d,
+        roomGroups: [UNDEAD_LARGE_GROUPS.ruins, UNDEAD_LARGE_GROUPS.bones, UNDEAD_LARGE_GROUPS.graves],
+        corridorGroup: UNDEAD_LARGE_GROUPS.roots,
+        torchMode: 'none',
+      }
+      : DEFAULT_VISUAL_PROFILE;
+  }
+
+  spawnRoamingEnemies() {
+    this.enemies = this.physics.add.group();
+    const enemySpawnCells = this.pickEnemySpawnCells();
+    this.layoutState.enemyCount = enemySpawnCells.length;
+    const defeatedEnemyIds = new Set(this.layoutState.defeatedEnemyIds ?? []);
+
+    for (let index = 0; index < enemySpawnCells.length; index += 1) {
+      const enemyId = `${this.layoutState.id ?? 'dungeon'}:enemy-${index}`;
+      if (defeatedEnemyIds.has(enemyId)) {
+        continue;
+      }
+
+      const cell = enemySpawnCells[index];
+      const center = this.cellToWorld(cell.x, cell.y);
+      const enemyType = ENEMY_TYPES[this.cellHash(cell.x, cell.y, 701 + index) % ENEMY_TYPES.length];
+      const enemy = this.physics.add
+        .sprite(center.x, center.y, enemyType.spriteKey, 0)
+        .setScale(enemyType.scale)
+        .setDepth(center.y + ENEMY_DEPTH_OFFSET);
+
+      enemy.enemyId = enemyId;
+      enemy.enemyStats = { ...enemyType };
+      enemy.spawnCell = cell;
+      enemy.chasing = false;
+      enemy.body.setSize(enemy.width * 0.45, enemy.height * 0.55);
+      this.playEnemyIdle(enemy);
+      this.enemies.add(enemy);
+    }
+
+    this.physics.add.collider(this.enemies, this.obstacles);
+    this.physics.add.overlap(this.player, this.enemies, (_player, enemy) => {
+      this.startCombat(enemy);
+    });
+  }
+
+  pickEnemySpawnCells() {
+    const spawnKey = `${this.layoutState.spawnCell.x},${this.layoutState.spawnCell.y}`;
+    const rooms = this.layoutState.rooms.filter((room) => {
+      const center = this.roomCenter(room);
+      return `${center.x},${center.y}` !== spawnKey;
+    });
+    const targetCount = Phaser.Math.Clamp(Math.floor(rooms.length * 0.55), ENEMY_COUNT_MIN, ENEMY_COUNT_MAX);
+    const cells = [];
+
+    for (let i = 0; i < rooms.length && cells.length < targetCount; i += 1) {
+      const room = rooms[(i + 1) % rooms.length];
+      const center = this.roomCenter(room);
+      const offsetX = (this.cellHash(room.x, room.y, 733 + i) % 3) - 1;
+      const offsetY = (this.cellHash(room.y, room.x, 751 + i) % 3) - 1;
+      const x = Phaser.Math.Clamp(center.x + offsetX, room.x + 1, room.x + room.w - 2);
+      const y = Phaser.Math.Clamp(center.y + offsetY, room.y + 1, room.y + room.h - 2);
+      const key = `${x},${y}`;
+
+      if (this.floorCellSet.has(key) && !this.decorTaken.has(key) && key !== spawnKey) {
+        cells.push({ x, y });
+        this.decorTaken.add(key);
+      }
+    }
+
+    return cells;
+  }
+
+  playEnemyIdle(enemy) {
+    const spriteKey = enemy.enemyStats.spriteKey;
+    const animationConfig = {
+      'slime-idle': { endFrame: 5, frameRate: 7 },
+      'plant1-idle': { endFrame: 3, frameRate: 6 },
+      'vampire1-idle': { endFrame: 3, frameRate: 6 },
+    };
+    const config = animationConfig[spriteKey] ?? animationConfig['slime-idle'];
+    const animKey = `${spriteKey}-dungeon-roam`;
+
+    if (!this.anims.exists(animKey)) {
+      this.anims.create({
+        key: animKey,
+        frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: config.endFrame }),
+        frameRate: config.frameRate,
+        repeat: -1,
+      });
+    }
+
+    enemy.play(animKey);
+  }
+
+  computeLayoutSeed(seedText) {
+    const text = String(seedText ?? 'dungeon');
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  cellHash(x, y, salt = 0) {
+    return this.hash2d((x + this.layoutSeed + salt) >>> 0, (y + salt * 17) >>> 0);
+  }
+
+  pickDeterministicFrame(frames, x, y, salt = 0) {
+    if (!frames || frames.length === 0) {
+      return 0;
+    }
+    const hash = this.cellHash(x, y, salt);
+    return frames[hash % frames.length];
   }
 
   update() {
     const editorHasFocus = this.devModeController?.update() ?? false;
     if (editorHasFocus) {
+      if (!this.editorCameraDetached) {
+        this.cameras.main.stopFollow();
+        this.editorCameraDetached = true;
+      }
       this.player.setVelocity(0, 0);
       this.player.anims.stop();
       this.player.setFrame(this.getIdleFrame(this.lastDirection));
       return;
     }
 
+    if (this.editorCameraDetached) {
+      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+      this.cameras.main.setDeadzone(140, 96);
+      this.editorCameraDetached = false;
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
-      this.regenerateDungeon();
+      this.switchDungeonByOffset(1);
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.prevDungeonKey)) {
+      this.switchDungeonByOffset(-1);
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.nextDungeonKey)) {
+      this.switchDungeonByOffset(1);
+      return;
+    }
+
+    if (this.handleDungeonNumberInput()) {
       return;
     }
 
@@ -289,7 +1025,7 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     this.updateMovement();
-    this.tryRandomEncounter();
+    this.updateRoamingEnemies();
   }
 
   updateMovement() {
@@ -321,40 +1057,79 @@ export class DungeonScene extends Phaser.Scene {
     this.player.anims.play(`walk-${this.lastDirection}`, true);
   }
 
-  tryRandomEncounter() {
-    if (this.layoutState.encounterCompleted || !this.player.body) {
+  updateRoamingEnemies() {
+    if (this.layoutState.encounterCompleted || this.combatStarting || !this.enemies || !this.player.body) {
       return;
     }
 
-    const velocity = this.player.body.velocity;
-    if (velocity.lengthSq() < 1) {
-      return;
+    for (const enemy of this.enemies.getChildren()) {
+      if (!enemy.active || !enemy.body) {
+        continue;
+      }
+
+      if (!enemy.chasing && this.hasLineOfSightToPlayer(enemy)) {
+        enemy.chasing = true;
+        this.tweens.add({
+          targets: enemy,
+          scaleX: enemy.scaleX * 1.12,
+          scaleY: enemy.scaleY * 1.12,
+          duration: 120,
+          yoyo: true,
+        });
+      }
+
+      if (enemy.chasing) {
+        this.physics.moveToObject(enemy, this.player, ENEMY_CHASE_SPEED);
+        enemy.setDepth(enemy.y + ENEMY_DEPTH_OFFSET);
+      } else {
+        enemy.setVelocity(0, 0);
+      }
     }
-
-    const nextCellKey = this.getPlayerCellKey();
-    if (nextCellKey === this.lastCellKey) {
-      return;
-    }
-
-    this.lastCellKey = nextCellKey;
-    this.stepsSinceEncounterRoll += 1;
-
-    if (this.stepsSinceEncounterRoll < ENCOUNTER_STEP_MIN) {
-      return;
-    }
-
-    const guaranteed = this.stepsSinceEncounterRoll >= ENCOUNTER_STEP_GUARANTEE;
-    const rolled = Math.random() < ENCOUNTER_CHANCE;
-
-    if (!guaranteed && !rolled) {
-      return;
-    }
-
-    this.startCombat();
   }
 
-  startCombat() {
-    const enemyStats = { ...FIXED_ENEMY };
+  hasLineOfSightToPlayer(enemy) {
+    const enemyCell = this.worldToCell(enemy.x, enemy.y);
+    const playerCell = this.worldToCell(this.player.x, this.player.y);
+    const sameColumn = enemyCell.x === playerCell.x;
+    const sameRow = enemyCell.y === playerCell.y;
+
+    if (!sameColumn && !sameRow) {
+      return false;
+    }
+
+    const distance = sameColumn ? Math.abs(enemyCell.y - playerCell.y) : Math.abs(enemyCell.x - playerCell.x);
+    if (distance > ENEMY_LINE_OF_SIGHT_CELLS) {
+      return false;
+    }
+
+    const stepX = sameRow ? Math.sign(playerCell.x - enemyCell.x) : 0;
+    const stepY = sameColumn ? Math.sign(playerCell.y - enemyCell.y) : 0;
+    let x = enemyCell.x + stepX;
+    let y = enemyCell.y + stepY;
+
+    while (x !== playerCell.x || y !== playerCell.y) {
+      if (!this.floorCellSet.has(`${x},${y}`)) {
+        return false;
+      }
+      x += stepX;
+      y += stepY;
+    }
+
+    return true;
+  }
+
+  startCombat(enemy = null) {
+    if (this.combatStarting) {
+      return;
+    }
+
+    this.combatStarting = true;
+    this.player.setVelocity(0, 0);
+    if (this.enemies) {
+      this.enemies.getChildren().forEach((enemySprite) => enemySprite.setVelocity(0, 0));
+    }
+
+    const enemyStats = { ...(enemy?.enemyStats ?? ENEMY_TYPES[0]) };
 
     this.scene.start('combat', {
       playerStats: {
@@ -369,6 +1144,7 @@ export class DungeonScene extends Phaser.Scene {
         layoutState: this.layoutState,
         dungeonSpawnX: this.player.x,
         dungeonSpawnY: this.player.y,
+        defeatedEnemyId: enemy?.enemyId ?? null,
       },
     });
   }
@@ -378,7 +1154,118 @@ export class DungeonScene extends Phaser.Scene {
       returnX: this.returnX,
       returnY: this.returnY,
       completionStatus: this.completionStatus,
+      layoutState: this.pickDungeonLayoutFromPool(),
     });
+  }
+
+  switchDungeonByOffset(offset) {
+    const currentIndex = this.layoutState.poolIndex ?? 0;
+    const nextIndex = Phaser.Math.Wrap(currentIndex + offset, 0, this.getDungeonPoolSize());
+    this.restartWithDungeonIndex(nextIndex);
+  }
+
+  restartWithDungeonIndex(index) {
+    this.scene.restart({
+      returnX: this.returnX,
+      returnY: this.returnY,
+      completionStatus: this.completionStatus,
+      dungeonIndex: index,
+      layoutState: this.pickDungeonLayoutFromPool(index),
+    });
+  }
+
+  handleDungeonNumberInput() {
+    for (const key of this.digitKeys) {
+      if (!Phaser.Input.Keyboard.JustDown(key)) {
+        continue;
+      }
+
+      const digit = DIGIT_KEY_CODES.get(key.keyCode);
+      if (digit === undefined) {
+        return false;
+      }
+
+      this.dungeonNumberBuffer = `${this.dungeonNumberBuffer}${digit}`.slice(-2);
+
+      if (this.dungeonNumberBufferTimer) {
+        this.dungeonNumberBufferTimer.remove(false);
+      }
+
+      this.dungeonNumberBufferTimer = this.time.delayedCall(240, () => {
+        const requestedNumber = Number(this.dungeonNumberBuffer);
+        this.dungeonNumberBuffer = '';
+        if (!Number.isInteger(requestedNumber) || requestedNumber < 1) {
+          return;
+        }
+
+        const index = requestedNumber - 1;
+        if (index >= 0 && index < this.getDungeonPoolSize()) {
+          this.restartWithDungeonIndex(index);
+        }
+      });
+
+      return true;
+    }
+
+    return false;
+  }
+
+  getDungeonPoolSize() {
+    if (dungeonLayoutPool.length === 0) {
+      dungeonLayoutPool = this.buildDungeonPool();
+      dungeonPoolCursor = 0;
+    }
+
+    return dungeonLayoutPool.length;
+  }
+
+  pickDungeonLayoutFromPool(forcedIndex = null) {
+    if (dungeonLayoutPool.length === 0) {
+      dungeonLayoutPool = this.buildDungeonPool();
+      dungeonPoolCursor = 0;
+    }
+
+    const poolIndex = Number.isInteger(forcedIndex)
+      ? Phaser.Math.Wrap(forcedIndex, 0, dungeonLayoutPool.length)
+      : dungeonPoolCursor % dungeonLayoutPool.length;
+    const layout = dungeonLayoutPool[poolIndex];
+    dungeonPoolCursor = (poolIndex + 1) % dungeonLayoutPool.length;
+    return this.cloneLayoutState(layout, poolIndex);
+  }
+
+  buildDungeonPool() {
+    const curatedLayouts = buildDungeonLayoutsFromBlueprints(
+      curatedDungeonPool?.dungeons ?? [],
+      GRID_COLS,
+      GRID_ROWS,
+    );
+
+    if (curatedLayouts.length > 0) {
+      return curatedLayouts.slice(0, ACTIVE_CURATED_DUNGEON_COUNT);
+    }
+
+    const fallbackPool = [];
+    for (let i = 0; i < FALLBACK_DUNGEON_POOL_SIZE; i += 1) {
+      fallbackPool.push(this.generateDungeonLayout());
+    }
+
+    return fallbackPool;
+  }
+
+  cloneLayoutState(layoutState, poolIndex = 0) {
+    return {
+      id: layoutState.id,
+      name: layoutState.name,
+      poolIndex,
+      blockers: layoutState.blockers.map((cell) => ({ ...cell })),
+      floorCells: layoutState.floorCells.map((cell) => ({ ...cell })),
+      rooms: layoutState.rooms.map((room) => ({ ...room })),
+      spawnCell: { ...layoutState.spawnCell },
+      tileTheme: layoutState.tileTheme,
+      defeatedEnemyIds: [...(layoutState.defeatedEnemyIds ?? [])],
+      enemyCount: layoutState.enemyCount ?? 0,
+      encounterCompleted: layoutState.encounterCompleted ?? false,
+    };
   }
 
   returnToOverworld() {
@@ -451,6 +1338,8 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     return {
+      id: `generated-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      name: 'Generated Fallback Dungeon',
       blockers,
       floorCells,
       rooms: sortedRooms,
@@ -579,5 +1468,9 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     return 0;
+  }
+
+  hash2d(x, y) {
+    return (x * 73856093 + y * 19349663) >>> 0;
   }
 }

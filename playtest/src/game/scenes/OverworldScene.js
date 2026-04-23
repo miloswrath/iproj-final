@@ -20,6 +20,9 @@ export class OverworldScene extends Phaser.Scene {
 
     this.renderGroundLayer();
     this.renderTransitionLayer();
+    this.renderPondShoreLayer();
+    this.renderGroundDetailLayer();
+    this.renderAtmosphereLayer();
     if (SHOW_COLLISION_OVERLAY) {
       this.renderCollisionLayer();
     }
@@ -28,6 +31,7 @@ export class OverworldScene extends Phaser.Scene {
     this.renderForegroundLayer();
     this.renderTownNpcs();
     this.renderLandmarks();
+    this.renderDungeonPortal();
 
     this.physics.world.setBounds(0, 0, this.layout.worldWidth, this.layout.worldHeight);
     this.cameras.main.setBounds(0, 0, this.layout.worldWidth, this.layout.worldHeight);
@@ -69,7 +73,7 @@ export class OverworldScene extends Phaser.Scene {
       rows: this.layout.rows,
       worldWidth: this.layout.worldWidth,
       worldHeight: this.layout.worldHeight,
-      registry: loadDevAssetRegistry('overworld'),
+      registry: loadDevAssetRegistry('overworld', this.textures),
     });
 
     this.add.text(16, 16, 'Overworld: outskirts -> town route, Shift sprint, E at gate', {
@@ -134,25 +138,36 @@ export class OverworldScene extends Phaser.Scene {
 
     this.createMiniMap();
 
-    const marker = this.add.rectangle(
-      this.layout.dungeonEntryWorld.x,
-      this.layout.dungeonEntryWorld.y,
-      this.layout.dungeonEntryZoneSize.width,
-      this.layout.dungeonEntryZoneSize.height,
-      0x4a7f2d,
-      0.48,
-    );
-    marker.setDepth(420).setStrokeStyle(2, 0xd7f171, 0.95);
+    this.portalZoneMarker = this.add
+      .rectangle(
+        this.layout.dungeonEntryWorld.x,
+        this.layout.dungeonEntryWorld.y,
+        this.layout.dungeonEntryZoneSize.width,
+        this.layout.dungeonEntryZoneSize.height,
+        0x4a7f2d,
+        0.08,
+      )
+      .setDepth(419)
+      .setStrokeStyle(2, 0xd7f171, 0.55);
   }
 
   update() {
     const editorHasFocus = this.devModeController?.update() ?? false;
     if (editorHasFocus) {
+      if (!this.editorCameraDetached) {
+        this.cameras.main.stopFollow();
+        this.editorCameraDetached = true;
+      }
       this.player.setVelocity(0, 0);
       this.player.anims.stop();
       this.player.setFrame(this.getIdleFrame(this.lastDirection));
       this.updateMiniMap();
       return;
+    }
+
+    if (this.editorCameraDetached) {
+      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+      this.editorCameraDetached = false;
     }
 
     const left = this.keys.left.isDown || this.wasd.A.isDown;
@@ -255,57 +270,75 @@ export class OverworldScene extends Phaser.Scene {
         const worldX = x * this.layout.tileSize + this.layout.tileSize / 2;
         const worldY = y * this.layout.tileSize + this.layout.tileSize / 2;
 
-        if (tile === TileKinds.GROUND_WATER) {
-          this.add
-            .image(worldX, worldY, 'overworld-water-tile')
-            .setDisplaySize(this.layout.tileSize, this.layout.tileSize)
-            .setDepth(0)
-            .setAlpha(0.86)
-            .setTint(0x95b7c3);
+        const texture = this.getGroundTextureForCell(tile, x, y);
+        const tint = this.getGroundTintForCell(tile, x, y);
+
+        if (!texture) {
           continue;
         }
 
-        this.add
-          .rectangle(
-            worldX,
-            worldY,
-            this.layout.tileSize,
-            this.layout.tileSize,
-            this.getGroundFlatColor(tile),
-            1,
-          )
-          .setDepth(0);
-
-        if (tile === TileKinds.GROUND_PATH) {
-          this.add
-            .image(worldX, worldY, 'overworld-path-a')
-            .setDisplaySize(this.layout.tileSize, this.layout.tileSize)
-            .setDepth(1)
-            .setAlpha(0.14)
-            .setTint(0xc6a984);
-        }
+        const groundImage = this.add
+          .image(worldX, worldY, texture)
+          .setDisplaySize(this.layout.tileSize, this.layout.tileSize)
+          .setDepth(0)
+          .setAlpha(tile === TileKinds.GROUND_WATER ? 0.62 : 0.98)
+          .setTint(tint);
+        groundImage.setFlipX((this.hash2d(x + 5, y + 11) & 1) === 1);
+        groundImage.setFlipY((this.hash2d(x + 13, y + 7) & 2) === 2);
       }
     }
   }
 
-  getGroundFlatColor(tile) {
+  getGroundTextureForCell(tile, x, y) {
+    const grain = this.hash2d(x, y);
+
     if (tile === TileKinds.GROUND_PATH) {
-      return 0xd0b184;
+      const pathTextures = ['overworld-path-a', 'overworld-path-b', 'overworld-path-c', 'overworld-path-d'];
+      return pathTextures[grain % pathTextures.length];
     }
 
     if (tile === TileKinds.GROUND_TOWN) {
-      return 0xc3ad8b;
+      return 'overworld-town-tile';
     }
 
     if (tile === TileKinds.GROUND_TRANSITION) {
-      return 0xb6bc8f;
+      const transitionTextures = ['overworld-transition-a', 'overworld-transition-b'];
+      return transitionTextures[grain % transitionTextures.length];
     }
 
     if (tile === TileKinds.GROUND_WATER) {
-      return 0x95b7c3;
+      return 'overworld-field-b';
     }
 
-    return 0xa9bb87;
+    const fieldTextures = ['overworld-field-a', 'overworld-field-b', 'overworld-field-c'];
+    return fieldTextures[grain % fieldTextures.length];
+  }
+
+  getGroundTintForCell(tile, x, y) {
+    const grain = this.hash2d(x + 17, y + 29) % 5;
+
+    if (tile === TileKinds.GROUND_PATH) {
+      const tints = [0xdab78e, 0xcfab7f, 0xc8a173, 0xd2b183, 0xcfa879];
+      return tints[grain];
+    }
+
+    if (tile === TileKinds.GROUND_TOWN) {
+      const tints = [0xd9c09c, 0xcfb38c, 0xc7aa82, 0xd5bc96, 0xcfb28d];
+      return tints[grain];
+    }
+
+    if (tile === TileKinds.GROUND_TRANSITION) {
+      const tints = [0xb9bf84, 0xadb673, 0xb4bc7d, 0xaeb878, 0xb7bf83];
+      return tints[grain];
+    }
+
+    if (tile === TileKinds.GROUND_WATER) {
+      const tints = [0x7fa58d, 0x789f8a, 0x719988, 0x83aa93, 0x789d86];
+      return tints[grain];
+    }
+
+    const tints = [0xa3bd85, 0x97b578, 0x8faf70, 0x9db985, 0x95b174];
+    return tints[grain];
   }
 
   renderTransitionLayer() {
@@ -323,6 +356,132 @@ export class OverworldScene extends Phaser.Scene {
         graphics.fillStyle(0xd2c181, 0.2);
         graphics.fillRect(worldX + 6, worldY + 6, this.layout.tileSize - 12, this.layout.tileSize - 12);
       }
+    }
+  }
+
+  renderPondShoreLayer() {
+    const pondCells = this.layout.pondCells ?? [];
+    if (pondCells.length === 0) {
+      return;
+    }
+
+    const waterKeys = new Set(pondCells.map((cell) => `${cell.x},${cell.y}`));
+    const graphics = this.add.graphics().setDepth(20);
+    const waterGraphics = this.add.graphics().setDepth(22);
+    const minX = Math.min(...pondCells.map((cell) => cell.x));
+    const maxX = Math.max(...pondCells.map((cell) => cell.x));
+    const minY = Math.min(...pondCells.map((cell) => cell.y));
+    const maxY = Math.max(...pondCells.map((cell) => cell.y));
+    const pondCenterX = (minX + maxX + 1) * this.layout.tileSize / 2;
+    const pondCenterY = (minY + maxY + 1) * this.layout.tileSize / 2;
+    const pondWidth = (maxX - minX + 1) * this.layout.tileSize;
+    const pondHeight = (maxY - minY + 1) * this.layout.tileSize;
+
+    graphics.fillStyle(0x566941, 0.28);
+    graphics.fillEllipse(pondCenterX, pondCenterY + 10, pondWidth * 1.12, pondHeight * 1.02);
+    graphics.fillStyle(0xc0b579, 0.46);
+    graphics.fillEllipse(pondCenterX, pondCenterY + 4, pondWidth * 1.02, pondHeight * 0.9);
+    waterGraphics.fillStyle(0x4f95aa, 0.82);
+    waterGraphics.fillEllipse(pondCenterX, pondCenterY + 2, pondWidth * 0.86, pondHeight * 0.68);
+    waterGraphics.fillStyle(0x77bfd1, 0.26);
+    waterGraphics.fillEllipse(pondCenterX - 20, pondCenterY - 8, pondWidth * 0.46, pondHeight * 0.22);
+    waterGraphics.fillStyle(0x2f7187, 0.2);
+    waterGraphics.fillEllipse(pondCenterX + 18, pondCenterY + 16, pondWidth * 0.55, pondHeight * 0.2);
+
+    for (const cell of pondCells) {
+      const x = cell.x * this.layout.tileSize;
+      const y = cell.y * this.layout.tileSize;
+      const centerX = x + this.layout.tileSize / 2;
+      const centerY = y + this.layout.tileSize / 2;
+      const grain = this.hash2d(cell.x + 503, cell.y + 211);
+      const nearTop = !waterKeys.has(`${cell.x},${cell.y - 1}`);
+      const nearBottom = !waterKeys.has(`${cell.x},${cell.y + 1}`);
+      const nearLeft = !waterKeys.has(`${cell.x - 1},${cell.y}`);
+      const nearRight = !waterKeys.has(`${cell.x + 1},${cell.y}`);
+
+      if (nearTop) {
+        graphics.fillStyle(0xd4c58f, 0.32);
+        graphics.fillEllipse(centerX, y + 4, this.layout.tileSize * 0.82, 7 + (grain % 3));
+      }
+
+      if (nearBottom) {
+        graphics.fillStyle(0x6f8b57, 0.28);
+        graphics.fillEllipse(centerX, y + this.layout.tileSize - 3, this.layout.tileSize * 0.8, 7 + (grain % 3));
+      }
+
+      if (nearLeft) {
+        graphics.fillStyle(0x7d9d64, 0.22);
+        graphics.fillEllipse(x + 3, centerY, 7 + (grain % 2), this.layout.tileSize * 0.72);
+      }
+
+      if (nearRight) {
+        graphics.fillStyle(0x9faa75, 0.22);
+        graphics.fillEllipse(x + this.layout.tileSize - 3, centerY, 7 + (grain % 2), this.layout.tileSize * 0.72);
+      }
+    }
+
+    for (let i = 0; i < 8; i += 1) {
+      const rx = pondCenterX - pondWidth * 0.28 + i * pondWidth * 0.08;
+      const ry = pondCenterY - 4 + ((i % 3) - 1) * 18;
+      waterGraphics.fillStyle(0xbce5ef, 0.16);
+      waterGraphics.fillEllipse(rx, ry, 18 + (i % 3) * 6, 3);
+    }
+  }
+
+  renderGroundDetailLayer() {
+    for (let y = 0; y < this.layout.rows; y += 1) {
+      for (let x = 0; x < this.layout.cols; x += 1) {
+        const tile = this.layout.ground[y][x];
+        const grain = this.hash2d(x + 91, y + 47);
+        const worldX = x * this.layout.tileSize + this.layout.tileSize / 2;
+        const worldY = y * this.layout.tileSize + this.layout.tileSize / 2;
+
+        if (tile === TileKinds.GROUND_PATH && grain % 9 === 0) {
+          this.add
+            .ellipse(worldX + ((grain % 5) - 2), worldY + ((grain >> 3) % 4) + 7, 6, 3, 0x8f6f46, 0.35)
+            .setDepth(18);
+          continue;
+        }
+
+        if (tile === TileKinds.GROUND_TRANSITION && grain % 11 === 0) {
+          this.add
+            .ellipse(worldX + ((grain % 3) - 1), worldY + 6, 5, 2, 0xb6c07f, 0.28)
+            .setDepth(17);
+          continue;
+        }
+
+        if (tile === TileKinds.GROUND_WATER && grain % 19 === 0) {
+          this.add
+            .ellipse(worldX, worldY + ((grain % 3) - 1), 12 + (grain % 4), 2, 0xbfe4f6, 0.16)
+            .setDepth(14);
+        }
+      }
+    }
+  }
+
+  renderAtmosphereLayer() {
+    const worldMidX = this.layout.worldWidth / 2;
+    const worldMidY = this.layout.worldHeight / 2;
+
+    // Soft daylight wash to reduce flatness while keeping readability.
+    this.add
+      .ellipse(worldMidX - 120, worldMidY - 220, this.layout.worldWidth * 0.95, this.layout.worldHeight * 0.8, 0xfff4d4, 0.07)
+      .setDepth(190);
+
+    this.add
+      .ellipse(worldMidX + 220, worldMidY + 120, this.layout.worldWidth * 0.8, this.layout.worldHeight * 0.72, 0x8fc8e0, 0.05)
+      .setDepth(191);
+
+    for (let i = 0; i < 18; i += 1) {
+      const xCell = 6 + i * 4;
+      const yCell = 8 + ((i * 3) % 18);
+      const worldX = xCell * this.layout.tileSize;
+      const worldY = yCell * this.layout.tileSize;
+      const alpha = 0.035 + (this.hash2d(xCell, yCell) % 8) * 0.004;
+
+      this.add
+        .ellipse(worldX, worldY, 140, 52, 0xffffff, alpha)
+        .setDepth(192);
     }
   }
 
@@ -358,12 +517,54 @@ export class OverworldScene extends Phaser.Scene {
       const xJitter = (grain % 5) - 2;
       const yJitter = ((grain >> 3) % 5) - 2;
 
-      const grassTexture = grain % 2 === 0 ? 'overworld-grass-1' : 'overworld-grass-6';
+      if (item.kind === 'flower') {
+        this.add
+          .image(worldX + xJitter, worldY + 6 + yJitter, grain % 2 === 0 ? 'overworld-grass-1' : 'overworld-grass-6')
+          .setDisplaySize(20, 15)
+          .setDepth(306)
+          .setTint(grain % 2 === 0 ? 0xf0d38c : 0xd8a1db)
+          .setAlpha(0.94);
+        continue;
+      }
+
+      if (item.kind === 'reeds') {
+        this.add.rectangle(worldX - 5, worldY + 7, 3, 20, 0x526d38, 0.9).setRotation(-0.22).setDepth(306);
+        this.add.rectangle(worldX, worldY + 6, 3, 22, 0x6b7b3d, 0.9).setDepth(307);
+        this.add.rectangle(worldX + 6, worldY + 7, 3, 19, 0x586f36, 0.9).setRotation(0.2).setDepth(306);
+        this.add.ellipse(worldX, worldY + 16, 22, 8, 0x000000, 0.13).setDepth(305);
+        continue;
+      }
+
+      if (item.kind === 'town-sign') {
+        this.add.rectangle(worldX, worldY + 8, 4, 24, 0x6b452b, 1).setDepth(307);
+        this.add.rectangle(worldX, worldY - 5, 26, 14, 0x9f7045, 1).setStrokeStyle(2, 0x4d321f, 0.9).setDepth(308);
+        this.add.rectangle(worldX, worldY - 5, 17, 2, 0xe0bd7f, 0.75).setDepth(309);
+        continue;
+      }
+
+      if (item.kind === 'shrine-lantern') {
+        this.add.ellipse(worldX, worldY + 13, 24, 10, 0x000000, 0.2).setDepth(305);
+        this.add.rectangle(worldX, worldY + 5, 10, 24, 0x4a5248, 1).setStrokeStyle(2, 0x20261f, 0.85).setDepth(307);
+        this.add.circle(worldX, worldY + 1, 7, 0xffd36f, 0.72).setDepth(308);
+        this.add.circle(worldX, worldY + 1, 16, 0xffd36f, 0.16).setDepth(306);
+        continue;
+      }
+
+      let grassTexture = grain % 2 === 0 ? 'overworld-grass-1' : 'overworld-grass-6';
+      let width = 22 + (grain % 5);
+      let height = 16 + (grain % 3);
+
+      if (item.kind === 'portal-stone' || item.kind === 'pond-stone') {
+        grassTexture = 'overworld-stone-3';
+        width = item.kind === 'portal-stone' ? 30 : 24;
+        height = item.kind === 'portal-stone' ? 22 : 18;
+      }
+
       this.add
         .image(worldX + xJitter, worldY + 4 + yJitter, grassTexture)
-        .setDisplaySize(22 + (grain % 5), 16 + (grain % 3))
+        .setDisplaySize(width, height)
         .setDepth(306)
-        .setAlpha(0.9);
+        .setAlpha(item.kind === 'portal-stone' ? 0.98 : 0.9);
     }
   }
 
@@ -444,29 +645,29 @@ export class OverworldScene extends Phaser.Scene {
 
       if (item.kind === 'guild-hall-exterior') {
         this.add
-          .image(worldX, worldY - 30, 'guild-hall-exterior')
+          .image(worldX, worldY - 20, 'guild-hall-exterior')
           .setDepth(worldY + 150)
-          .setScale(0.78);
+          .setScale(0.44);
       } else if (item.kind === 'house-1') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-1')
           .setDepth(worldY + 120)
-          .setScale(0.93);
+          .setScale(0.76);
       } else if (item.kind === 'house-2') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-2')
           .setDepth(worldY + 120)
-          .setScale(0.93);
+          .setScale(0.68);
       } else if (item.kind === 'house-3') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-3')
           .setDepth(worldY + 120)
-          .setScale(0.93);
+          .setScale(0.64);
       } else if (item.kind === 'house-4') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-4')
           .setDepth(worldY + 120)
-          .setScale(0.93);
+          .setScale(0.64);
       } else if (item.kind === 'mega-tree') {
         this.add.ellipse(worldX, worldY + 11, 34, 16, 0x000000, 0.24).setDepth(worldY + 101);
         this.add
@@ -483,22 +684,22 @@ export class OverworldScene extends Phaser.Scene {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-1')
           .setDepth(worldY + 110)
-          .setScale(0.92);
+          .setScale(0.78);
       } else if (item.kind === 'tent-2') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-2')
           .setDepth(worldY + 110)
-          .setScale(0.92);
+          .setScale(0.78);
       } else if (item.kind === 'tent-3') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-3')
           .setDepth(worldY + 110)
-          .setScale(0.92);
+          .setScale(0.78);
       } else if (item.kind === 'tent-4') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-4')
           .setDepth(worldY + 110)
-          .setScale(0.92);
+          .setScale(0.78);
       } else {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-2')
@@ -516,12 +717,13 @@ export class OverworldScene extends Phaser.Scene {
       const worldY = npc.y * this.layout.tileSize + this.layout.tileSize / 2;
       const pulse = 1200 + ((npc.x * 3 + npc.y) % 5) * 120;
 
-      this.add.ellipse(worldX, worldY + 12, 22, 10, 0x000000, 0.24).setDepth(worldY + 105);
+      const actorScale = npc.scale ?? 1.1;
+      this.add.ellipse(worldX, worldY + 16, 28, 12, 0x000000, 0.24).setDepth(worldY + 105);
 
       const actor = this.add
         .sprite(worldX, worldY + 1, npc.sprite, npc.frame ?? 0)
         .setDepth(worldY + 120)
-        .setScale(npc.scale ?? 0.86);
+        .setScale(actorScale);
 
       this.tweens.add({
         targets: actor,
@@ -533,8 +735,9 @@ export class OverworldScene extends Phaser.Scene {
       });
 
       const markerColor = npc.markerColor ?? 0xd7e7ff;
-      const marker = this.add.circle(worldX, worldY - 18, 4, markerColor, 0.86).setDepth(worldY + 130);
-      this.add.rectangle(worldX, worldY - 18, 12, 2, markerColor, 0.35).setDepth(worldY + 129);
+      const markerY = worldY - 23;
+      const marker = this.add.circle(worldX, markerY, 4, markerColor, 0.86).setDepth(worldY + 130);
+      this.add.rectangle(worldX, markerY, 12, 2, markerColor, 0.35).setDepth(worldY + 129);
       this.tweens.add({
         targets: marker,
         alpha: { from: 0.55, to: 0.95 },
@@ -562,6 +765,35 @@ export class OverworldScene extends Phaser.Scene {
         })
         .setDepth(420);
     }
+  }
+
+  renderDungeonPortal() {
+    const x = this.layout.dungeonEntryWorld.x;
+    const y = this.layout.dungeonEntryWorld.y;
+    const baseDepth = 430;
+
+    this.add.ellipse(x, y + 16, 132, 42, 0x000000, 0.3).setDepth(baseDepth - 3);
+    this.add.ellipse(x, y + 12, 112, 38, 0x4d534f, 0.36).setDepth(baseDepth - 2);
+    this.add.ellipse(x, y + 7, 88, 34, 0x6cae67, 0.2).setDepth(baseDepth - 1);
+    this.add.ellipse(x, y + 1, 58, 76, 0x233044, 0.5).setDepth(baseDepth);
+    this.add.ellipse(x, y - 2, 36, 56, 0x79c6e7, 0.28).setDepth(baseDepth + 1);
+    this.add.ellipse(x, y - 2, 18, 38, 0xd7f171, 0.36).setDepth(baseDepth + 2);
+
+    this.add
+      .rectangle(x, y + 25, 118, 8, 0x38423e, 0.86)
+      .setStrokeStyle(1, 0xd7f171, 0.34)
+      .setDepth(baseDepth + 3);
+
+    this.add
+      .text(x, y + 42, 'E', {
+        fontFamily: 'monospace',
+        fontSize: '15px',
+        color: '#f6ffce',
+        backgroundColor: '#1d2d19cc',
+        padding: { x: 5, y: 1 },
+      })
+      .setOrigin(0.5)
+      .setDepth(baseDepth + 4);
   }
 
   buildCollisionBodies() {
