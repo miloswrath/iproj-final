@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 const EDITOR_DEPTH = 12000;
 const PAN_SPEED = 14;
 const HISTORY_LIMIT = 100;
+const TOOLBAR_HEIGHT = 164;
 
 const TOOL_SINGLE = 'single';
 const TOOL_RECT = 'rect';
@@ -32,6 +33,7 @@ export class DeveloperModeController {
     this.worldWidth = config.worldWidth;
     this.worldHeight = config.worldHeight;
     this.registry = config.registry;
+    this.autoLoadSavedWorld = config.autoLoadSavedWorld !== false;
 
     this.enabled = false;
     this.layerIndex = 0;
@@ -55,6 +57,7 @@ export class DeveloperModeController {
     this.dragBatch = null;
     this.rectStartCell = null;
     this.moveStartCell = null;
+    this.lastSaveStatus = '';
 
     this.toggleKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKTICK);
     this.cameraKeys = scene.input.keyboard.addKeys('I,K,J,L');
@@ -69,11 +72,17 @@ export class DeveloperModeController {
     this.nextGroupKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.prevAssetKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
     this.nextAssetKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    this.assetShowcaseKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G);
 
     this.createOverlay();
     this.drawGrid();
     this.refreshSelectionForLayer();
     this.bindEditorInput();
+
+    if (this.autoLoadSavedWorld) {
+      this.loadWorldFromLocalSlot(true);
+    }
+
     this.updateHud();
 
     this.scene.events.once('shutdown', () => {
@@ -97,6 +106,7 @@ export class DeveloperModeController {
     this.handleLayerHotkeys();
     this.handleToolHotkeys();
     this.handlePaletteHotkeys();
+    this.handleEditorActions();
     this.handleCameraPan();
     this.updatePointerPreview();
     this.updateHud();
@@ -176,7 +186,7 @@ export class DeveloperModeController {
 
     const viewportWidth = this.scene.scale.width;
     const viewportHeight = this.scene.scale.height;
-    const toolbarHeight = 112;
+    const toolbarHeight = TOOLBAR_HEIGHT;
     const toolbarY = viewportHeight - toolbarHeight;
     this.toolbarTopY = toolbarY;
 
@@ -196,7 +206,7 @@ export class DeveloperModeController {
       .setVisible(false);
 
     this.toolbarModeBadge = this.scene.add
-      .rectangle(16, toolbarY + 12, 80, 24, 0x2e6842, 0.95)
+      .rectangle(16, toolbarY + 14, 102, 32, 0x2e6842, 0.95)
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(EDITOR_DEPTH + 10)
@@ -204,9 +214,9 @@ export class DeveloperModeController {
       .setVisible(false);
 
     this.toolbarModeText = this.scene.add
-      .text(24, toolbarY + 16, 'DEV ON', {
+      .text(28, toolbarY + 21, 'DEV ON', {
         fontFamily: 'monospace',
-        fontSize: '12px',
+        fontSize: '14px',
         color: '#e8fff0',
       })
       .setScrollFactor(0)
@@ -214,9 +224,9 @@ export class DeveloperModeController {
       .setVisible(false);
 
     this.toolbarPrimaryText = this.scene.add
-      .text(108, toolbarY + 10, '', {
+      .text(132, toolbarY + 12, '', {
         fontFamily: 'monospace',
-        fontSize: '14px',
+        fontSize: '16px',
         color: '#d9f6ff',
       })
       .setScrollFactor(0)
@@ -224,9 +234,9 @@ export class DeveloperModeController {
       .setVisible(false);
 
     this.toolbarSecondaryText = this.scene.add
-      .text(108, toolbarY + 34, '', {
+      .text(132, toolbarY + 40, '', {
         fontFamily: 'monospace',
-        fontSize: '12px',
+        fontSize: '14px',
         color: '#a7d9ea',
       })
       .setScrollFactor(0)
@@ -234,20 +244,20 @@ export class DeveloperModeController {
       .setVisible(false);
 
     this.toolbarHelpText = this.scene.add
-      .text(16, toolbarY + 68, '', {
+      .text(16, toolbarY + 112, '', {
         fontFamily: 'monospace',
-        fontSize: '12px',
+        fontSize: '13px',
         color: '#b7ced8',
       })
       .setScrollFactor(0)
       .setDepth(EDITOR_DEPTH + 11)
       .setVisible(false);
 
-    const previewX = viewportWidth - 150;
-    const previewY = toolbarY + 18;
+    const previewX = viewportWidth - 180;
+    const previewY = toolbarY + 22;
 
     this.assetPreviewFrame = this.scene.add
-      .rectangle(previewX, previewY, 56, 56, 0x0c2532, 1)
+      .rectangle(previewX, previewY, 72, 72, 0x0c2532, 1)
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(EDITOR_DEPTH + 10)
@@ -255,16 +265,16 @@ export class DeveloperModeController {
       .setVisible(false);
 
     this.assetPreviewImage = this.scene.add
-      .image(previewX + 28, previewY + 28, 'overworld-field-a')
-      .setDisplaySize(42, 42)
+      .image(previewX + 36, previewY + 36, 'overworld-field-a')
+      .setDisplaySize(56, 56)
       .setScrollFactor(0)
       .setDepth(EDITOR_DEPTH + 11)
       .setVisible(false);
 
     this.assetPreviewLabel = this.scene.add
-      .text(previewX - 160, previewY + 16, '', {
+      .text(previewX - 210, previewY + 22, '', {
         fontFamily: 'monospace',
-        fontSize: '12px',
+        fontSize: '13px',
         color: '#f1fbff',
         align: 'right',
       })
@@ -280,15 +290,15 @@ export class DeveloperModeController {
     this.layerTabs = [];
 
     const toolStartX = 16;
-    const toolY = toolbarY + 40;
-    const toolWidth = 72;
+    const toolY = toolbarY + 72;
+    const toolWidth = 86;
     const toolGap = 8;
 
     for (let index = 0; index < EDITOR_TOOLS.length; index += 1) {
       const tool = EDITOR_TOOLS[index];
       const x = toolStartX + index * (toolWidth + toolGap);
       const bg = this.scene.add
-        .rectangle(x, toolY, toolWidth, 24, 0x163342, 0.95)
+        .rectangle(x, toolY, toolWidth, 32, 0x163342, 0.95)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(EDITOR_DEPTH + 11)
@@ -298,9 +308,9 @@ export class DeveloperModeController {
 
       const labelText = tool.id === TOOL_SINGLE ? 'Single' : tool.id === TOOL_RECT ? 'Rect' : tool.id === TOOL_ERASE ? 'Erase' : 'Move';
       const label = this.scene.add
-        .text(x + toolWidth / 2, toolY + 4, labelText, {
+        .text(x + toolWidth / 2, toolY + 7, labelText, {
           fontFamily: 'monospace',
-          fontSize: '12px',
+          fontSize: '14px',
           color: '#dff5ff',
         })
         .setOrigin(0.5, 0)
@@ -320,16 +330,16 @@ export class DeveloperModeController {
       this.toolButtons.push({ bg, label });
     }
 
-    const tabStartX = 340;
-    const tabY = toolbarY + 40;
-    const tabWidth = 128;
+    const tabStartX = 414;
+    const tabY = toolbarY + 72;
+    const tabWidth = 156;
     const tabGap = 8;
 
     for (let index = 0; index < EDITOR_LAYERS.length; index += 1) {
       const layer = EDITOR_LAYERS[index];
       const x = tabStartX + index * (tabWidth + tabGap);
       const bg = this.scene.add
-        .rectangle(x, tabY, tabWidth, 24, 0x1f2d38, 0.95)
+        .rectangle(x, tabY, tabWidth, 32, 0x1f2d38, 0.95)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(EDITOR_DEPTH + 11)
@@ -338,9 +348,9 @@ export class DeveloperModeController {
         .setInteractive({ useHandCursor: true });
 
       const label = this.scene.add
-        .text(x + tabWidth / 2, tabY + 4, layer.label, {
+        .text(x + tabWidth / 2, tabY + 7, layer.label, {
           fontFamily: 'monospace',
-          fontSize: '12px',
+          fontSize: '14px',
           color: '#d2e6f2',
         })
         .setOrigin(0.5, 0)
@@ -412,10 +422,23 @@ export class DeveloperModeController {
       }
 
       const key = String(event.key || '').toLowerCase();
+      const withShift = Boolean(event.shiftKey);
 
       if (key === 's') {
         event.preventDefault();
+
+        if (withShift) {
+          this.saveWorldToLocalSlot();
+          return;
+        }
+
         this.saveWorldToJsonFile();
+        return;
+      }
+
+      if (key === 'l' && withShift) {
+        event.preventDefault();
+        this.loadWorldFromLocalSlot();
         return;
       }
 
@@ -529,6 +552,105 @@ export class DeveloperModeController {
     } else if (Phaser.Input.Keyboard.JustDown(this.nextAssetKey)) {
       this.assetIndex = Phaser.Math.Wrap(this.assetIndex + 1, 0, selectedGroup.assets.length);
     }
+  }
+
+  handleEditorActions() {
+    if (Phaser.Input.Keyboard.JustDown(this.assetShowcaseKey)) {
+      this.generateAssetShowcaseLayout();
+    }
+  }
+
+  generateAssetShowcaseLayout() {
+    this.clearAllEditorCells();
+
+    const sectionPadding = 2;
+    const camera = this.scene.cameras?.main;
+    const visibleStartX = Phaser.Math.Clamp(
+      Math.floor((camera?.worldView?.x ?? 0) / this.tileSize) + 1,
+      1,
+      Math.max(1, this.cols - 2),
+    );
+    const visibleStartY = Phaser.Math.Clamp(
+      Math.floor((camera?.worldView?.y ?? 0) / this.tileSize) + 1,
+      1,
+      Math.max(1, this.rows - 2),
+    );
+    const sectionWidth = Math.max(1, this.cols - visibleStartX - 1);
+    const baseFloorAsset = this.getFirstAvailableLayerAsset('floor');
+    let nextStartY = visibleStartY;
+    const placements = [];
+
+    for (const layerId of ['floor', 'collision', 'decor']) {
+      const assets = this.getAssetsForLayer(layerId);
+      if (assets.length === 0) {
+        continue;
+      }
+
+      const requiredRows = Math.max(1, Math.ceil(assets.length / sectionWidth));
+      if (nextStartY + requiredRows >= this.rows - 1) {
+        this.lastSaveStatus = `Showcase truncated: not enough rows for ${layerId} assets`;
+        break;
+      }
+
+      for (let index = 0; index < assets.length; index += 1) {
+        const cellX = visibleStartX + (index % sectionWidth);
+        const cellY = nextStartY + Math.floor(index / sectionWidth);
+        const cellKey = this.toCellKey(cellX, cellY);
+        const assetKey = assets[index].key;
+
+        if (layerId === 'floor') {
+          this.setFloorCell(cellKey, assetKey);
+        } else if (layerId === 'collision') {
+          if (baseFloorAsset && !this.floorCells.has(cellKey)) {
+            this.setFloorCell(cellKey, baseFloorAsset.key);
+          }
+          this.setCollisionCell(cellKey, assetKey);
+        } else {
+          if (baseFloorAsset && !this.floorCells.has(cellKey)) {
+            this.setFloorCell(cellKey, baseFloorAsset.key);
+          }
+          this.setDecorCell(cellKey, assetKey);
+        }
+
+        placements.push(`${layerId}:${assetKey}`);
+      }
+
+      nextStartY += requiredRows + sectionPadding;
+    }
+
+    this.undoStack = [];
+    this.redoStack = [];
+    this.lastSaveStatus = `Showcase generated (${placements.length} assets)`;
+  }
+
+  getFirstAvailableLayerAsset(layerId) {
+    const groups = this.registry.byLayer[layerId] ?? [];
+    for (const group of groups) {
+      for (const asset of group.assets ?? []) {
+        if (asset?.key && this.scene.textures.exists(asset.key)) {
+          return asset;
+        }
+      }
+    }
+    return null;
+  }
+
+  getAssetsForLayer(layerId) {
+    const groups = this.registry.byLayer[layerId] ?? [];
+    const seen = new Set();
+    const assets = [];
+
+    for (const group of groups) {
+      for (const asset of group.assets ?? []) {
+        if (!asset?.key || seen.has(asset.key) || !this.scene.textures.exists(asset.key)) {
+          continue;
+        }
+        seen.add(asset.key);
+        assets.push(asset);
+      }
+    }
+
+    return assets;
   }
 
   handleCameraPan() {
@@ -897,12 +1019,48 @@ export class DeveloperModeController {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
 
+    const defaultName = `world-${this.sceneLabel.toLowerCase()}-${Date.now()}`;
+    const requestedName = window.prompt('Save map filename (.json optional):', defaultName);
+    if (requestedName === null) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     anchor.href = url;
-    anchor.download = `world-${this.sceneLabel.toLowerCase()}-${Date.now()}.json`;
+    anchor.download = this.normalizeJsonFilename(requestedName, defaultName);
     anchor.click();
 
     URL.revokeObjectURL(url);
     localStorage.setItem(this.getAutoSaveKey(), json);
+    this.lastSaveStatus = `Saved file ${anchor.download}`;
+  }
+
+  saveWorldToLocalSlot() {
+    const worldData = this.serializeWorldData();
+    const json = JSON.stringify(worldData);
+    localStorage.setItem(this.getAutoSaveKey(), json);
+    this.lastSaveStatus = `Quick-saved slot ${this.getAutoSaveKey()}`;
+  }
+
+  loadWorldFromLocalSlot(silent = false) {
+    const text = localStorage.getItem(this.getAutoSaveKey());
+    if (!text) {
+      if (!silent) {
+        this.lastSaveStatus = 'No quick-save slot found';
+      }
+      return;
+    }
+
+    this.loadWorldFromJsonText(text);
+    if (!silent) {
+      this.lastSaveStatus = 'Loaded quick-save slot';
+    }
+  }
+
+  normalizeJsonFilename(requestedName, fallbackName) {
+    const trimmed = String(requestedName ?? '').trim();
+    const safeBase = trimmed.length > 0 ? trimmed : fallbackName;
+    return safeBase.toLowerCase().endsWith('.json') ? safeBase : `${safeBase}.json`;
   }
 
   promptLoadWorldFromJson() {
@@ -1158,8 +1316,12 @@ export class DeveloperModeController {
     );
 
     this.toolbarHelpText.setText(
-      'Tools P/F/R/M | Layer 1/2/3 | Palette Q/E + Z/X | Undo Ctrl+Z | Redo Ctrl+Y | Save Ctrl+S | Load Ctrl+O | Camera I/J/K/L',
+      'Tools P/F/R/M | Layer 1/2/3 | Palette Q/E + Z/X | Showcase G | Undo Ctrl+Z | Redo Ctrl+Y | Save Ctrl+S | Quick Save Ctrl+Shift+S | Quick Load Ctrl+Shift+L | Load Ctrl+O | Camera I/J/K/L',
     );
+
+    if (this.lastSaveStatus) {
+      this.toolbarSecondaryText.setText(`${this.toolbarSecondaryText.text}  |  ${this.lastSaveStatus}`);
+    }
 
     for (let index = 0; index < (this.toolButtons?.length ?? 0); index += 1) {
       const active = this.toolIndex === index;

@@ -75,6 +75,36 @@ Acceptance criteria:
 5. Verify victory returns to dungeon with encounter disabled.
 6. Verify defeat returns to overworld with failed status text.
 
+## Curated Dungeon Pool Workflow
+
+Dungeon selection now uses a curated JSON pool instead of pure runtime generation.
+
+1. Edit `playtest/src/game/data/dungeons/curatedDungeonPool.json`.
+2. Add a new object under `dungeons` with:
+- `id`: unique identifier
+- `tileTheme`: `classic` or `undead`
+- `spawnCell`: `{ "x": <int>, "y": <int> }`
+- `rooms`: array of `{ "x", "y", "w", "h" }`
+- `corridors`: array of `{ "from": {"x","y"}, "to": {"x","y"}, "width" }`
+3. Run `npm run dev` from `playtest/` and press `R` in dungeon to cycle pool entries.
+4. Confirm the HUD line `Active layout: <name> [<id>]` changes as you cycle.
+
+Validation contract enforced at runtime:
+- Rooms: integer `x/y/w/h`, minimum room size `3x3`, all room tiles must remain inside playable interior bounds.
+- Corridors: each entry must define integer `from` and `to` cells and integer `width` between `1` and `3`.
+- Spawn: `spawnCell` must be an interior walkable floor tile after rooms/corridors are carved.
+- Reachability: every floor tile must be connected to spawn through 4-direction walkable paths.
+
+Quick verification loop:
+1. Add or edit one curated dungeon entry.
+2. Start playtest with `npm run dev` in `playtest/`.
+3. Enter dungeon and press `R` until your layout ID appears.
+4. Traverse from spawn through rooms/corridors and verify no isolated floor islands.
+5. If the layout never appears, fix schema/bounds/connectivity issues and retest.
+
+Fallback behavior:
+- If curated pool data is missing or all entries fail validation, runtime falls back to generated layouts so playtest remains usable.
+
 ## Out of Scope (Deferred)
 
 - Puzzle / QTE system

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { assetPaths } from '../assetPaths';
+import { preloadAutoAssetImages } from '../autoAssetManifest';
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -7,6 +8,10 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload() {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    const isAssetCanvasMode = mode === 'asset-canvas';
+
     const progressLabel = this.add.text(24, 24, 'Loading assets: 0%', {
       fontFamily: 'monospace',
       fontSize: '18px',
@@ -59,6 +64,22 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 16,
     });
+    this.load.spritesheet('dungeon-chests-doors', assetPaths.dungeonDoorsChestsUrl, {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+    this.load.spritesheet('dungeon-fire-anim', assetPaths.dungeonFireAnimationUrl, {
+      frameWidth: 44,
+      frameHeight: 48,
+    });
+    this.load.spritesheet('dungeon-fire-anim-small', assetPaths.dungeonFireAnimation2Url, {
+      frameWidth: 24,
+      frameHeight: 32,
+    });
+    this.load.spritesheet('dungeon-trap-anim', assetPaths.dungeonTrapAnimationUrl, {
+      frameWidth: 48,
+      frameHeight: 40,
+    });
     this.load.spritesheet('undead-ground-tiles', assetPaths.undeadGroundTilesUrl, {
       frameWidth: 16,
       frameHeight: 16,
@@ -66,6 +87,10 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet('undead-objects', assetPaths.undeadObjectsUrl, {
       frameWidth: 16,
       frameHeight: 16,
+    });
+    this.load.spritesheet('undead-objects-large', assetPaths.undeadObjectsUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
     });
     this.load.spritesheet('witch-kitty', assetPaths.witchKittyWalkUrl, {
       frameWidth: 64,
@@ -87,9 +112,16 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+
+    if (isAssetCanvasMode) {
+      preloadAutoAssetImages(this);
+    }
   }
 
   create() {
-    this.scene.start('overworld');
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    const startScene = mode === 'asset-canvas' ? 'asset-canvas' : 'overworld';
+    this.scene.start(startScene);
   }
 }

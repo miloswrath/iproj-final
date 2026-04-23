@@ -32,6 +32,10 @@ import dungeonTileUrl from '../../../assets/tilesets/dungeon/walls_floor.png';
 import dungeonFloorTilesUrl from '../../../assets/tilesets/dungeon/decorative_cracks_floor.png';
 import dungeonWallTilesUrl from '../../../assets/tilesets/dungeon/decorative_cracks_walls.png';
 import dungeonObjectsUrl from '../../../assets/tilesets/dungeon/Objects.png';
+import dungeonDoorsChestsUrl from '../../../assets/tilesets/dungeon/doors_lever_chest_animation.png';
+import dungeonFireAnimationUrl from '../../../assets/tilesets/dungeon/fire_animation.png';
+import dungeonFireAnimation2Url from '../../../assets/tilesets/dungeon/fire_animation2.png';
+import dungeonTrapAnimationUrl from '../../../assets/tilesets/dungeon/trap_animation.png';
 import slimeIdleUrl from '../../../assets/enemies/slimes/slime1_idle.png';
 import plant1IdleUrl from '../../../assets/enemies/plants/plant1_idle.png';
 import vampire1IdleUrl from '../../../assets/enemies/vampires/vampire1_idle.png';
@@ -74,6 +78,10 @@ export const assetPaths = {
   dungeonFloorTilesUrl,
   dungeonWallTilesUrl,
   dungeonObjectsUrl,
+  dungeonDoorsChestsUrl,
+  dungeonFireAnimationUrl,
+  dungeonFireAnimation2Url,
+  dungeonTrapAnimationUrl,
   slimeIdleUrl,
   plant1IdleUrl,
   vampire1IdleUrl,

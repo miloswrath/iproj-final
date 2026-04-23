@@ -5,6 +5,7 @@ import { PreloadScene } from './game/scenes/PreloadScene';
 import { OverworldScene } from './game/scenes/OverworldScene';
 import { DungeonScene } from './game/scenes/DungeonScene';
 import { CombatScene } from './game/scenes/CombatScene';
+import { AssetCanvasScene } from './game/scenes/AssetCanvasScene';
 
 const gameConfig = {
   type: Phaser.AUTO,
@@ -20,7 +21,11 @@ const gameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, PreloadScene, OverworldScene, DungeonScene, CombatScene],
+  scene: [BootScene, PreloadScene, OverworldScene, DungeonScene, CombatScene, AssetCanvasScene],
 };
 
-new Phaser.Game(gameConfig);
+const game = new Phaser.Game(gameConfig);
+
+if (import.meta.env.DEV) {
+  window.__playtestGame = game;
+}
