@@ -150,7 +150,7 @@ export class CombatScene extends Phaser.Scene {
       .on('pointerdown', () => this.resolveReturn())
       .setVisible(false);
 
-    this.helpText = this.add.text(panelLeft + 34, panelTop + panelHeight - 36, 'Use keys 1/2 or click actions.', {
+    this.helpText = this.add.text(panelLeft + 34, panelTop + panelHeight - 36, 'Use keys 1/2 or click actions. Dungeon clears now award loot.', {
       fontFamily: 'monospace',
       fontSize: '16px',
       color: '#c8ccdc',

@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { createOverworldLayout, TileKinds } from '../overworld/overworldLayout';
 import { DeveloperModeController } from '../editor/DeveloperModeController';
 import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
+import { InventoryOverlay } from '../ui/InventoryOverlay';
+import { getPlaytestInventoryState, getPlaytestProgressionSummary } from '../playtestProgression';
 
 const PLAYER_SPEED = 180;
 const SPRINT_MULTIPLIER = 1.85;
@@ -15,6 +17,7 @@ export class OverworldScene extends Phaser.Scene {
 
   create(data) {
     this.dungeonCompletionStatus = data?.dungeonCompletionStatus ?? null;
+    this.rewardSummaryText = data?.rewardSummaryText ?? '';
     this.layout = createOverworldLayout();
     this.cameras.main.setBackgroundColor(0x9bad76);
 
@@ -130,6 +133,36 @@ export class OverworldScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
 
+    const progressionSummary = getPlaytestProgressionSummary();
+    const inventoryCount = getPlaytestInventoryState().items.reduce((sum, item) => sum + item.quantity, 0);
+
+    this.progressionLabel = this.add
+      .text(16, 160, `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} total loot`, {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffd98e',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH);
+
+    this.rewardLabel = this.add
+      .text(16, 184, this.rewardSummaryText ? `Latest reward: ${this.rewardSummaryText}` : 'Latest reward: none yet', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#c8ffbc',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH);
+
+    this.inventoryOverlay = new InventoryOverlay(this, getPlaytestInventoryState(), {
+      title: 'Field Inventory',
+      subtitle: 'I / Tab toggle | Arrow keys browse | Close to resume movement',
+    });
+
     if (this.dungeonCompletionStatus === 'complete') {
       this.completionLabel.setText('Dungeon status: encounter completed.').setVisible(true);
     } else if (this.dungeonCompletionStatus === 'failed') {
@@ -168,6 +201,14 @@ export class OverworldScene extends Phaser.Scene {
     if (this.editorCameraDetached) {
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
       this.editorCameraDetached = false;
+    }
+
+    if (this.inventoryOverlay?.update()) {
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
     }
 
     const left = this.keys.left.isDown || this.wasd.A.isDown;
