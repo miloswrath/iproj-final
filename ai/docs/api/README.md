@@ -2,9 +2,11 @@
 
 This document explains the API surface implemented in `ai/`, including every network endpoint the app calls, payload formats, expected responses, and integration requirements for downstream systems.
 
-> Important: this project is currently an **API client + terminal runtime**, not an HTTP server. It does not expose inbound REST routes itself. Instead, it sends requests to:
-> 1) a local LLM endpoint, and
-> 2) an external game endpoint.
+> Important: this project now supports **two runtime modes**:
+> 1) terminal runtime (`src/index.ts`), and
+> 2) inbound localhost HTTP API service (`src/server.ts`).
+>
+> Both modes reuse the same conversation, lifecycle detection, memory update, and outbound game notification pipeline.
 
 ---
 
@@ -12,11 +14,12 @@ This document explains the API surface implemented in `ai/`, including every net
 
 The runtime flow is:
 
-1. User chats in terminal (`src/index.ts`).
-2. The app sends conversation context to local LLM (`src/client.ts`).
-3. The app may run additional classifier calls (quest offer + acceptance intent) via the same LLM API (`src/lifecycle/detector.ts`).
-4. On conversation termination, the app posts a quest-start notification to a game API endpoint (`src/notify/game-api.ts`).
-5. Failed outbound game notifications are persisted and retried next launch.
+1. Client uses terminal mode (`src/index.ts`) or HTTP mode (`src/server.ts`).
+2. Conversation messages are sent to local LLM (`src/client.ts`).
+3. Quest-offer and acceptance detection run via classifier logic (`src/lifecycle/detector.ts`).
+4. On termination, post-conversation pipeline updates memory (`src/lifecycle/pipeline.ts`).
+5. Accepted terminations post a quest-start notification (`src/notify/game-api.ts`).
+6. Failed outbound game notifications are persisted and retried next launch.
 
 ---
 
@@ -24,14 +27,47 @@ The runtime flow is:
 
 | # | Endpoint | Method | Called By | Purpose |
 |---|---|---|---|---|
-| 1 | `http://localhost:1234/v1/chat/completions` | `POST` | `sendMessage()` in `src/client.ts` | Generate in-character NPC replies |
-| 2 | `http://localhost:1234/v1/chat/completions` | `POST` | `classifyQuestOffer()` in `src/lifecycle/detector.ts` | Verify whether NPC offered a concrete quest |
-| 3 | `http://localhost:1234/v1/chat/completions` | `POST` | `classifyIntent()` in `src/lifecycle/detector.ts` | Classify player intent (`accept/reject/uncertain`) |
-| 4 | `http://localhost:3000/quest/start` (default) or `GAME_API_URL` | `POST` | `notifyQuestStart()` in `src/notify/game-api.ts` | Notify game system that quest conversation terminated and should transition |
+| 1 | `/conversation/start` | `POST` | Inbound clients -> `src/server.ts` | Create/resume conversation session |
+| 2 | `/conversation/message` | `POST` | Inbound clients -> `src/server.ts` | Send one player message, receive one NPC reply + state |
+| 3 | `/conversation/end` | `POST` | Inbound clients -> `src/server.ts` | End conversation explicitly |
+| 4 | `/conversation/state/:id` | `GET` | Inbound clients -> `src/server.ts` | Read conversation state |
+| 5 | `http://localhost:1234/v1/chat/completions` | `POST` | `sendMessage()` in `src/client.ts` | Generate in-character NPC replies |
+| 6 | `http://localhost:1234/v1/chat/completions` | `POST` | `classifyQuestOffer()` in `src/lifecycle/detector.ts` | Verify whether NPC offered a concrete quest |
+| 7 | `http://localhost:1234/v1/chat/completions` | `POST` | `classifyIntent()` in `src/lifecycle/detector.ts` | Classify player intent (`accept/reject/uncertain`) |
+| 8 | `http://localhost:3000/quest/start` (default) or `GAME_API_URL` | `POST` | `notifyQuestStart()` in `src/notify/game-api.ts` | Notify game system that quest conversation terminated and should transition |
 
 ---
 
-## 3) Local LLM API Endpoints
+## 3) Inbound HTTP Conversation API
+
+Base URL: `http://localhost:${AI_API_PORT:-3001}`
+
+### `POST /conversation/start`
+- Idempotent by `conversationId`
+- Creates or resumes active conversation
+- Returns `409 conversation_terminated` if ID is in terminated replay window
+
+### `POST /conversation/message`
+- Idempotent by (`conversationId`, `idempotencyKey`)
+- Processes exactly one player turn and returns exactly one NPC reply
+- May terminate in same call when acceptance is detected
+
+### `POST /conversation/end`
+- Idempotent by (`conversationId`, `idempotencyKey`)
+- Explicitly terminates conversation and runs post-conversation pipeline
+
+### `GET /conversation/state/:id`
+- Returns active or recently-terminated state snapshot
+- Returns `404 conversation_not_found` for unknown IDs
+
+### Cross-cutting behavior
+- Active sessions auto-end after 10 minutes of inactivity (`terminationReason = exit`)
+- Terminated replay metadata retained for 5 minutes for idempotent retry safety
+- Non-2xx errors use `{ error: { code, message } }`
+
+---
+
+## 4) Local LLM API Endpoints
 
 All LLM calls use OpenAI-compatible Chat Completions via the OpenAI SDK:
 

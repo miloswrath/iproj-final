@@ -29,6 +29,7 @@ export interface Session {
   activeMemory: CharacterMemory;
   history: HistoryEntry[];
   conversationState: ConversationState;
+  pipelineCompleted?: boolean;
 }
 
 // ─── Memory Types ─────────────────────────────────────────────────────────────
@@ -105,4 +106,42 @@ export interface ConversationFeatures {
   selfDisclosureDepth: number;
   contradictionCount: number;
   engagementLength: number;
+}
+
+// ─── HTTP API Types ───────────────────────────────────────────────────────────
+
+export interface StartConversationRequest {
+  conversationId: string;
+  character: string;
+  playerId: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface MessageConversationRequest {
+  conversationId: string;
+  text: string;
+  idempotencyKey: string;
+}
+
+export interface EndConversationRequest {
+  conversationId: string;
+  reason: string;
+  idempotencyKey: string;
+}
+
+export interface ConversationStateResponse {
+  conversationId: string;
+  character: string;
+  phase: ConversationPhase;
+  questOffered: string | null;
+  terminationReason: string | null;
+  status: "active" | "terminated";
+  lastUpdatedAt?: string;
+}
+
+export interface ApiErrorResponse {
+  error: {
+    code: string;
+    message: string;
+  };
 }

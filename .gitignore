@@ -5,19 +5,21 @@
 devenv.local.nix
 devenv.local.yaml
 
-# direnv
-.direnv
-
-# pre-commit
+# Pre-commit
 .pre-commit-config.yaml
 
-# Devenv
-.devenv*
-devenv.local.nix
-devenv.local.yaml
+# Node / TypeScript
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.*
 
-# direnv
-.direnv
-
-# pre-commit
-.pre-commit-config.yaml
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/

@@ -96,3 +96,10 @@ Research decisions are documented in [research.md](research.md), resolving trans
 ## Complexity Tracking
 
 No constitutional violations or additional complexity waivers required.
+
+## Implementation Notes
+
+- Implemented HTTP runtime entrypoint in `ai/src/server.ts` with inbound `/conversation/*` routes.
+- Added session registry, idempotency replay handling, timeout sweep, and terminated TTL cache.
+- Preserved memory pipeline and notification retry integration through existing lifecycle modules.
+- Pending validation: full manual acceptance run from `quickstart.md` once local TypeScript tooling (`tsx`) is installed.

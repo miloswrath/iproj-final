@@ -1,7 +1,7 @@
 # Contract: HTTP API v1 - Conversation Service
 
 **Feature**: 001-http-api-conversations  
-**Base URL**: `http://localhost:<port>` (localhost only)
+**Base URL**: `http://localhost:${AI_API_PORT:-3001}` (localhost only)
 
 All non-2xx errors follow:
 
@@ -108,6 +108,7 @@ Send one player message and receive one NPC reply plus updated state.
 - `400` invalid_request
 - `404` conversation_not_found
 - `409` invalid_state_transition
+- `409` invalid_idempotency_reuse
 - `500` internal_error
 
 ---
@@ -148,6 +149,7 @@ Explicitly end conversation (exit/menu close/scene transition).
 - `400` invalid_request
 - `404` conversation_not_found
 - `409` invalid_state_transition
+- `409` invalid_idempotency_reuse
 - `500` internal_error
 
 ---

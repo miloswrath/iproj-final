@@ -18,10 +18,10 @@
 From `/home/zak/school/s26/iproj/final/ai`:
 
 ```bash
-npm run dev
+npm run dev:api
 ```
 
-Service should expose conversation endpoints on configured localhost port.
+Service should expose conversation endpoints on configured localhost port (default `3001`, override with `AI_API_PORT`).
 
 ---
 

@@ -23,7 +23,15 @@ export function createSession(
       terminationReason: null,
       frozen: false,
     },
+    pipelineCompleted: false,
   };
+}
+
+export function createConversationSession(
+  character: Character,
+  characterMemory?: CharacterMemory
+): Session {
+  return createSession(character, characterMemory);
 }
 
 export function appendMessage(
@@ -55,6 +63,10 @@ export function appendSwitch(
 }
 
 export function clearSession(session: Session): void {
+  session.history = [];
+}
+
+export function discardSessionHistory(session: Session): void {
   session.history = [];
 }
 

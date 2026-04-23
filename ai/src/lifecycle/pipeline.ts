@@ -50,6 +50,10 @@ export async function runWithNotification(
   session: Session,
   questId: string
 ): Promise<void> {
+  if (session.pipelineCompleted) {
+    return;
+  }
+
   await runPostConversationPipeline(session);
 
   const { relationship } = session.activeMemory;
@@ -65,4 +69,6 @@ export async function runWithNotification(
     },
     terminationReason: session.conversationState.terminationReason ?? "rule",
   });
+
+  session.pipelineCompleted = true;
 }
