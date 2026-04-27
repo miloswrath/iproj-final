@@ -1,12 +1,12 @@
-# Playtest Foundation (Vertical Slice A)
+# Dungeon Loop Runtime
 
-This branch contains a minimal JavaScript playtest runtime focused on mechanics only.
+This repository uses the Phaser/Vite runtime in `playtest/` as the current playable app.
 
 ## Runtime
 
 - Framework: Vite + Phaser 3
-- Playtest app location: `playtest/`
-- Current main playable app: `playtest/` remains the authoritative runtime until a later migration is explicitly approved.
+- Main app location: `playtest/`
+- Current main playable app: `playtest/` is the authoritative runtime for overworld, dungeon, and combat work.
 
 ## Local Development
 
@@ -34,11 +34,17 @@ Run a production build from `playtest/`:
 npm run build
 ```
 
+Run the scripted runtime diagnostic from `playtest/` while the dev server is running:
+
+```bash
+npm run diagnose:runtime
+```
+
 ## Sprint 2 Overworld Validation
 
 Use these steps for the handcrafted field -> city overworld baseline.
 
-1. Start playtest (`npm run dev`) and load overworld.
+1. Start the game runtime (`npm run dev`) and load overworld.
 2. Confirm HUD shows:
 - Ambient loops count <= 35
 - Traversal audit PASS
@@ -55,7 +61,7 @@ Acceptance criteria:
 - Route/objective readability preserved after decor/ambient rendering.
 - Overworld rendering remains deterministic across scene reloads.
 
-## Current Playtest Loop
+## Current Runtime Loop
 
 - Boot scene -> preload scene -> overworld test scene
 - Move player with WASD or arrow keys
@@ -102,13 +108,13 @@ Validation contract enforced at runtime:
 
 Quick verification loop:
 1. Add or edit one curated dungeon entry.
-2. Start playtest with `npm run dev` in `playtest/`.
+2. Start the game runtime with `npm run dev` in `playtest/`.
 3. Enter dungeon and press `R` until your layout ID appears.
 4. Traverse from spawn through rooms/corridors and verify no isolated floor islands.
 5. If the layout never appears, fix schema/bounds/connectivity issues and retest.
 
 Fallback behavior:
-- If curated pool data is missing or all entries fail validation, runtime falls back to generated layouts so playtest remains usable.
+- If curated pool data is missing or all entries fail validation, runtime falls back to generated layouts so the game remains usable.
 
 ## Out of Scope (Deferred)
 

@@ -5,6 +5,13 @@ export const INVENTORY_ITEM_DEFS = {
     type: 'Consumable',
     description: 'Restore a chunk of HP during combat to stabilize a risky run.',
     iconFrame: 78,
+    combat: {
+      usable: true,
+      effect: {
+        kind: 'heal',
+        amount: 12,
+      },
+    },
   },
   slimeJelly: {
     id: 'slime-jelly',
@@ -37,5 +44,6 @@ export function createInventoryEntry(itemDef, quantity) {
     quantity,
     description: itemDef.description,
     iconFrame: itemDef.iconFrame,
+    combat: itemDef.combat ?? null,
   };
 }

@@ -17,6 +17,12 @@ function createEmptyEquipmentSlots() {
 }
 
 const progressionState = {
+  playerCombat: {
+    maxHp: 30,
+    hp: 30,
+    attack: 8,
+    defendReduction: 4,
+  },
   inventory: {
     slots: INVENTORY_SLOTS,
     items: createEmptyInventorySlots(),
@@ -31,6 +37,26 @@ const progressionState = {
 };
 
 function normalizeInventoryState() {
+  if (!progressionState.playerCombat || typeof progressionState.playerCombat !== 'object') {
+    progressionState.playerCombat = {
+      maxHp: 30,
+      hp: 30,
+      attack: 8,
+      defendReduction: 4,
+    };
+  }
+
+  progressionState.playerCombat.maxHp = progressionState.playerCombat.maxHp ?? 30;
+  progressionState.playerCombat.attack = progressionState.playerCombat.attack ?? 8;
+  progressionState.playerCombat.defendReduction = progressionState.playerCombat.defendReduction ?? 4;
+  progressionState.playerCombat.hp = Math.max(
+    0,
+    Math.min(
+      progressionState.playerCombat.hp ?? progressionState.playerCombat.maxHp,
+      progressionState.playerCombat.maxHp,
+    ),
+  );
+
   if (!Array.isArray(progressionState.inventory.items)) {
     progressionState.inventory.items = createEmptyInventorySlots();
   }
@@ -41,10 +67,6 @@ function normalizeInventoryState() {
     ));
   }
 
-  if (progressionState.totals.chestsOpened === 0 && progressionState.totals.rewardsEarned === 0) {
-    progressionState.inventory.items = createEmptyInventorySlots();
-  }
-
   if (!Array.isArray(progressionState.inventory.equipmentSlots) || progressionState.inventory.equipmentSlots.length !== EQUIPMENT_SLOT_DEFS.length) {
     progressionState.inventory.equipmentSlots = createEmptyEquipmentSlots();
   }
@@ -53,6 +75,11 @@ function normalizeInventoryState() {
 export function getPlaytestInventoryState() {
   normalizeInventoryState();
   return progressionState.inventory;
+}
+
+export function getPlaytestCombatantState() {
+  normalizeInventoryState();
+  return progressionState.playerCombat;
 }
 
 export function getPlaytestProgressionSummary() {
@@ -98,6 +125,96 @@ function addInventoryQuantity(itemDef, quantity) {
   }
 
   progressionState.inventory.items[emptySlotIndex] = createInventoryEntry(itemDef, quantity);
+}
+
+export function getCombatUsableInventoryItems() {
+  normalizeInventoryState();
+
+  return progressionState.inventory.items
+    .map((item, slotIndex) => {
+      if (!item?.combat?.usable || item.quantity <= 0) {
+        return null;
+      }
+
+      return {
+        ...item,
+        slotIndex,
+      };
+    })
+    .filter(Boolean);
+}
+
+export function consumeInventoryItem(itemId, quantity = 1) {
+  normalizeInventoryState();
+
+  if (quantity <= 0) {
+    return false;
+  }
+
+  for (let index = 0; index < progressionState.inventory.items.length; index += 1) {
+    const item = progressionState.inventory.items[index];
+    if (!item || item.id !== itemId || item.quantity < quantity) {
+      continue;
+    }
+
+    item.quantity -= quantity;
+    if (item.quantity <= 0) {
+      progressionState.inventory.items[index] = null;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+export function setPlaytestPlayerHp(hp) {
+  normalizeInventoryState();
+  progressionState.playerCombat.hp = Math.max(0, Math.min(hp, progressionState.playerCombat.maxHp));
+  return progressionState.playerCombat.hp;
+}
+
+export function applyCombatItemEffect(itemId) {
+  normalizeInventoryState();
+
+  const itemDef = inventoryItemDefsById.get(itemId);
+  if (!itemDef?.combat?.usable) {
+    return {
+      applied: false,
+      reason: 'not-usable',
+    };
+  }
+
+  const effect = itemDef.combat.effect ?? null;
+  if (!effect) {
+    return {
+      applied: false,
+      reason: 'no-effect',
+    };
+  }
+
+  if (!consumeInventoryItem(itemId, 1)) {
+    return {
+      applied: false,
+      reason: 'missing-item',
+    };
+  }
+
+  if (effect.kind === 'heal') {
+    const previousHp = progressionState.playerCombat.hp;
+    const nextHp = setPlaytestPlayerHp(previousHp + effect.amount);
+    return {
+      applied: true,
+      effect: 'heal',
+      amount: nextHp - previousHp,
+      itemName: itemDef.name,
+      hp: nextHp,
+    };
+  }
+
+  return {
+    applied: false,
+    reason: 'unsupported-effect',
+  };
 }
 
 export function claimChestRewards(chest, dungeonId = 'generated') {

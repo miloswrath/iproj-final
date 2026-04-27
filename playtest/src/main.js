@@ -12,6 +12,10 @@ const gameConfig = {
   parent: 'game-root',
   width: 1280,
   height: 720,
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
   pixelArt: true,
   backgroundColor: '#101418',
   dom: {
@@ -30,5 +34,6 @@ const gameConfig = {
 const game = new Phaser.Game(gameConfig);
 
 if (import.meta.env.DEV) {
+  window.__gameRuntime = game;
   window.__playtestGame = game;
 }
