@@ -14,6 +14,9 @@ const gameConfig = {
   height: 720,
   pixelArt: true,
   backgroundColor: '#101418',
+  dom: {
+    createContainer: true,
+  },
   physics: {
     default: 'arcade',
     arcade: {

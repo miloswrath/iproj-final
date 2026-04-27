@@ -3,6 +3,8 @@ import { createOverworldLayout, TileKinds } from '../overworld/overworldLayout';
 import { DeveloperModeController } from '../editor/DeveloperModeController';
 import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
 import { InventoryOverlay } from '../ui/InventoryOverlay';
+import { ConversationOverlay } from '../ui/ConversationOverlay';
+import { HUDController } from '../ui/HUDController';
 import { getPlaytestInventoryState, getPlaytestProgressionSummary } from '../playtestProgression';
 
 const PLAYER_SPEED = 180;
@@ -33,6 +35,7 @@ export class OverworldScene extends Phaser.Scene {
     this.renderAmbientLifeLayer();
     this.renderForegroundLayer();
     this.renderTownNpcs();
+    this.renderAiNpcs();
     this.renderLandmarks();
     this.renderDungeonPortal();
 
@@ -134,7 +137,10 @@ export class OverworldScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     const progressionSummary = getPlaytestProgressionSummary();
-    const inventoryCount = getPlaytestInventoryState().items.reduce((sum, item) => sum + item.quantity, 0);
+    const inventoryCount = getPlaytestInventoryState().items.reduce(
+      (sum, item) => sum + (item?.quantity ?? 0),
+      0,
+    );
 
     this.progressionLabel = this.add
       .text(16, 160, `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} total loot`, {
@@ -182,9 +188,26 @@ export class OverworldScene extends Phaser.Scene {
       )
       .setDepth(419)
       .setStrokeStyle(2, 0xd7f171, 0.55);
+
+    this.hud = new HUDController(this);
+    this.events.once('shutdown', () => {
+      if (this.hud) {
+        this.hud.destroy();
+        this.hud = null;
+      }
+    });
   }
 
   update() {
+    if (this.conversationOverlay?.isOpen) {
+      this.conversationOverlay.update();
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
     const editorHasFocus = this.devModeController?.update() ?? false;
     if (editorHasFocus) {
       if (!this.editorCameraDetached) {
@@ -211,6 +234,8 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    const nearestNpc = this.updateAiNpcInteraction();
+
     const left = this.keys.left.isDown || this.wasd.A.isDown;
     const right = this.keys.right.isDown || this.wasd.D.isDown;
     const up = this.keys.up.isDown || this.wasd.W.isDown;
@@ -232,6 +257,15 @@ export class OverworldScene extends Phaser.Scene {
         returnX: this.layout.spawnWorld.x,
         returnY: this.layout.spawnWorld.y,
       });
+      return;
+    }
+
+    if (nearestNpc && !inDungeonZone && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      const overlay = this.getActiveConversationOverlay();
+      overlay.open(nearestNpc.config);
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
       return;
     }
 
@@ -748,6 +782,76 @@ export class OverworldScene extends Phaser.Scene {
           .setScale(0.93);
       }
     }
+  }
+
+  renderAiNpcs() {
+    const npcs = this.layout.aiNpcs ?? [];
+    this.aiNpcs = [];
+
+    for (const npc of npcs) {
+      const worldX = npc.world.x;
+      const worldY = npc.world.y;
+      const animKey = `${npc.spriteKey}-loop`;
+      if (!this.anims.exists(animKey)) {
+        const tex = this.textures.get(npc.spriteKey);
+        const totalFrames = tex?.frameTotal ? Math.max(1, tex.frameTotal - 1) : 1;
+        this.anims.create({
+          key: animKey,
+          frames: this.anims.generateFrameNumbers(npc.spriteKey, {
+            start: 0,
+            end: Math.max(0, totalFrames - 1),
+          }),
+          frameRate: 6,
+          repeat: -1,
+        });
+      }
+
+      this.add.ellipse(worldX, worldY + 18, 36, 14, 0x000000, 0.28).setDepth(worldY + 105);
+      const sprite = this.add
+        .sprite(worldX, worldY, npc.spriteKey, 0)
+        .setDepth(worldY + 120)
+        .setScale(0.5);
+      sprite.anims.play(animKey, true);
+
+      const prompt = this.add
+        .text(worldX, worldY - 36, '[ E ]', {
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          color: '#fff7d9',
+          backgroundColor: '#3a2a16',
+          padding: { x: 4, y: 2 },
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(worldY + 130)
+        .setVisible(false);
+
+      this.aiNpcs.push({ config: npc, sprite, prompt, worldX, worldY });
+    }
+  }
+
+  getActiveConversationOverlay() {
+    if (!this.conversationOverlay) {
+      this.conversationOverlay = new ConversationOverlay(this);
+    }
+    return this.conversationOverlay;
+  }
+
+  updateAiNpcInteraction() {
+    if (!this.aiNpcs?.length) return null;
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const entry of this.aiNpcs) {
+      const dx = this.player.x - entry.worldX;
+      const dy = this.player.y - entry.worldY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const inRange = dist <= entry.config.interactionRadius;
+      entry.prompt.setVisible(inRange);
+      if (inRange && dist < nearestDist) {
+        nearestDist = dist;
+        nearest = entry;
+      }
+    }
+    return nearest;
   }
 
   renderTownNpcs() {

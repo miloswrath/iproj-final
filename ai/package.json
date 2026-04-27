@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "dev:server": "tsx src/server/http.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "tsx --test --test-concurrency=1 tests/**/*.test.ts"
