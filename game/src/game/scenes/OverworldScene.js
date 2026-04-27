@@ -134,7 +134,7 @@ export class OverworldScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     const progressionSummary = getPlaytestProgressionSummary();
-    const inventoryCount = getPlaytestInventoryState().items.reduce((sum, item) => sum + item.quantity, 0);
+    const inventoryCount = getPlaytestInventoryState().items.reduce((sum, item) => sum + (item?.quantity ?? 0), 0);
 
     this.progressionLabel = this.add
       .text(16, 160, `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} total loot`, {

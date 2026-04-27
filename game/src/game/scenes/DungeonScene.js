@@ -5,7 +5,13 @@ import curatedDungeonPool from '../data/dungeons/curatedDungeonPool.json';
 import { buildDungeonLayoutsFromBlueprints } from '../dungeonPoolBuilder';
 import { InventoryOverlay } from '../ui/InventoryOverlay';
 import { INVENTORY_ITEM_DEFS } from '../ui/inventoryData';
-import { claimChestRewards, getPlaytestInventoryState, getPlaytestProgressionSummary, recordDungeonClear } from '../playtestProgression';
+import {
+  claimChestRewards,
+  getPlaytestCombatantState,
+  getPlaytestInventoryState,
+  getPlaytestProgressionSummary,
+  recordDungeonClear,
+} from '../playtestProgression';
 
 const TILE_SIZE = 40;
 const TILE_SCALE = TILE_SIZE / 16;
@@ -250,7 +256,53 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   createBackground() {
-    this.add.rectangle(DUNGEON_WIDTH / 2, DUNGEON_HEIGHT / 2, DUNGEON_WIDTH, DUNGEON_HEIGHT, 0x080d14, 1);
+    const id = this.layoutState?.id ?? 'atrium-chain';
+    const base = this.visualProfile;
+    this.add.rectangle(DUNGEON_WIDTH / 2, DUNGEON_HEIGHT / 2, DUNGEON_WIDTH, DUNGEON_HEIGHT, base.shadow ?? 0x080d14, 1);
+
+    const haze = this.add.graphics();
+    haze.fillGradientStyle(base.shadow ?? 0x080d14, base.shadow ?? 0x080d14, base.highlight ?? 0x39445b, base.roomGlow ?? 0x5d7199, 1);
+    haze.fillRect(0, 0, DUNGEON_WIDTH, DUNGEON_HEIGHT);
+
+    const glowA = this.add.ellipse(DUNGEON_WIDTH * 0.25, DUNGEON_HEIGHT * 0.22, 640, 360, base.roomGlow ?? 0x6f89aa, 0.12);
+    const glowB = this.add.ellipse(DUNGEON_WIDTH * 0.74, DUNGEON_HEIGHT * 0.68, 760, 420, base.highlight ?? 0x59637a, 0.09);
+    glowA.setBlendMode(Phaser.BlendModes.SCREEN);
+    glowB.setBlendMode(Phaser.BlendModes.SCREEN);
+
+    const motif = this.add.graphics();
+    if (id === 'ring-galleries') {
+      motif.lineStyle(8, 0xc2b3ff, 0.16);
+      motif.strokeCircle(DUNGEON_WIDTH * 0.24, DUNGEON_HEIGHT * 0.2, 120);
+      motif.strokeCircle(DUNGEON_WIDTH * 0.24, DUNGEON_HEIGHT * 0.2, 196);
+      motif.strokeCircle(DUNGEON_WIDTH * 0.78, DUNGEON_HEIGHT * 0.7, 164);
+    } else if (id === 'sundered-halls') {
+      motif.lineStyle(10, 0x7ccf89, 0.12);
+      motif.beginPath();
+      motif.moveTo(0, DUNGEON_HEIGHT * 0.14);
+      motif.lineTo(DUNGEON_WIDTH * 0.18, DUNGEON_HEIGHT * 0.22);
+      motif.lineTo(DUNGEON_WIDTH * 0.3, DUNGEON_HEIGHT * 0.08);
+      motif.lineTo(DUNGEON_WIDTH * 0.45, DUNGEON_HEIGHT * 0.26);
+      motif.lineTo(DUNGEON_WIDTH * 0.62, DUNGEON_HEIGHT * 0.12);
+      motif.strokePath();
+    } else if (id === 'split-sanctum') {
+      motif.fillStyle(0xd48c85, 0.08);
+      motif.fillTriangle(DUNGEON_WIDTH * 0.5, DUNGEON_HEIGHT * 0.14, DUNGEON_WIDTH * 0.42, DUNGEON_HEIGHT * 0.28, DUNGEON_WIDTH * 0.58, DUNGEON_HEIGHT * 0.28);
+      motif.lineStyle(8, 0xff8d72, 0.14);
+      motif.strokeTriangle(DUNGEON_WIDTH * 0.5, DUNGEON_HEIGHT * 0.16, DUNGEON_WIDTH * 0.38, DUNGEON_HEIGHT * 0.34, DUNGEON_WIDTH * 0.62, DUNGEON_HEIGHT * 0.34);
+    } else if (id === 'lantern-way') {
+      motif.fillStyle(0xffd181, 0.1);
+      for (let index = 0; index < 5; index += 1) {
+        motif.fillRoundedRect(170 + (index * 260), 96 + ((index % 2) * 40), 46, 64, 8);
+      }
+    } else {
+      motif.lineStyle(8, 0x94b2d6, 0.12);
+      motif.beginPath();
+      motif.moveTo(DUNGEON_WIDTH * 0.1, DUNGEON_HEIGHT * 0.18);
+      motif.lineTo(DUNGEON_WIDTH * 0.2, DUNGEON_HEIGHT * 0.1);
+      motif.lineTo(DUNGEON_WIDTH * 0.34, DUNGEON_HEIGHT * 0.22);
+      motif.lineTo(DUNGEON_WIDTH * 0.46, DUNGEON_HEIGHT * 0.08);
+      motif.strokePath();
+    }
   }
 
   configureWorldBounds() {
@@ -1256,14 +1308,12 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     const enemyStats = { ...(enemy?.enemyStats ?? ENEMY_TYPES[0]) };
+    const playerStats = { ...getPlaytestCombatantState() };
 
     this.scene.start('combat', {
-      playerStats: {
-        maxHp: 30,
-        attack: 8,
-        defendReduction: 4,
-      },
+      playerStats,
       enemyStats,
+      layoutState: this.layoutState,
       returnContext: {
         returnX: this.returnX,
         returnY: this.returnY,
@@ -1419,24 +1469,38 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   buildChestPlacements(rooms, spawnCell, tileTheme = 'classic') {
-    const candidateRooms = rooms.filter((room) => {
-      const center = this.roomCenter(room);
-      return center.x !== spawnCell.x || center.y !== spawnCell.y;
-    });
+    const candidateRooms = rooms
+      .map((room) => ({
+        room,
+        center: this.roomCenter(room),
+      }))
+      .filter(({ center }) => center.x !== spawnCell.x || center.y !== spawnCell.y)
+      .filter(({ room }) => room.w >= 4 && room.h >= 4)
+      .sort((a, b) => {
+        const distanceA = Phaser.Math.Distance.Between(a.center.x, a.center.y, spawnCell.x, spawnCell.y);
+        const distanceB = Phaser.Math.Distance.Between(b.center.x, b.center.y, spawnCell.x, spawnCell.y);
+        return distanceB - distanceA;
+      });
 
     const chestCount = Phaser.Math.Clamp(candidateRooms.length >= 4 ? 2 : 1, 1, 2);
     const chests = [];
 
     for (let index = 0; index < candidateRooms.length && chests.length < chestCount; index += 1) {
-      const room = candidateRooms[index * 2] ?? candidateRooms[index];
-      if (!room) {
+      const roomEntry = candidateRooms[index * 2] ?? candidateRooms[index];
+      if (!roomEntry) {
         continue;
       }
 
-      const center = this.roomCenter(room);
-      const offsetX = index % 2 === 0 ? 1 : -1;
-      const x = Phaser.Math.Clamp(center.x + offsetX, room.x + 1, room.x + room.w - 2);
-      const y = Phaser.Math.Clamp(center.y + 1, room.y + 1, room.y + room.h - 2);
+      const { room, center } = roomEntry;
+      const anchor = index % 2 === 0
+        ? { x: room.x + room.w - 2, y: room.y + room.h - 2 }
+        : { x: room.x + 1, y: room.y + room.h - 2 };
+      const x = Phaser.Math.Clamp(anchor.x, room.x + 1, room.x + room.w - 2);
+      const y = Phaser.Math.Clamp(anchor.y, room.y + 1, room.y + room.h - 2);
+
+      if (Phaser.Math.Distance.Between(x, y, spawnCell.x, spawnCell.y) < 8) {
+        continue;
+      }
 
       chests.push({
         id: `chest-${index + 1}`,
@@ -1463,6 +1527,11 @@ export class DungeonScene extends Phaser.Scene {
     ];
 
     if (chestIndex === 0) {
+      rewards.unshift({
+        itemId: INVENTORY_ITEM_DEFS.fieldTonic.id,
+        quantity: 1,
+      });
+    } else {
       rewards.unshift({
         itemId: INVENTORY_ITEM_DEFS.slimeJelly.id,
         quantity: 1,

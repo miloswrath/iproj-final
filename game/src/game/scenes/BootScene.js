@@ -7,7 +7,7 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     this.add
-      .text(24, 24, 'Booting playtest...', {
+      .text(24, 24, 'Booting game runtime...', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#ffffff',
