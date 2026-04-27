@@ -133,6 +133,18 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 16,
     });
+    this.load.spritesheet('npc-girl-1-idle', assetPaths.npcGirl1IdleUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-1-walk', assetPaths.npcGirl1WalkUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-1-dialogue', assetPaths.npcGirl1DialogueUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
 
     if (isAssetCanvasMode) {
       preloadAutoAssetImages(this);

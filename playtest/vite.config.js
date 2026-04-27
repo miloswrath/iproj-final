@@ -5,5 +5,16 @@ export default defineConfig({
     fs: {
       allow: ['..'],
     },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: false,
+      },
+      '/events': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: false,
+        ws: false,
+      },
+    },
   },
 });

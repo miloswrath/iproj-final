@@ -3,6 +3,7 @@ import OpenAI from "openai";
 const openai = new OpenAI({
   baseURL: "http://localhost:1234/v1",
   apiKey: "lm-studio",
+  fetch: ((url: any, init: any) => globalThis.fetch(url, init)) as never,
 });
 
 // ─── Quest Offer Detection ────────────────────────────────────────────────────

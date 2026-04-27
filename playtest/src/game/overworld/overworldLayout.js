@@ -1,3 +1,5 @@
+import { npcs as aiNpcConfigs } from '../npc/npcConfig.js';
+
 const TILE_SIZE = 40;
 const COLS = 78;
 const ROWS = 44;
@@ -473,6 +475,11 @@ export function createOverworldLayout() {
     return !criticalPathCells.has(`${item.x},${item.y}`);
   });
 
+  const aiNpcs = aiNpcConfigs.map((npc) => ({
+    ...npc,
+    world: toWorld(npc.overworldTile.x, npc.overworldTile.y),
+  }));
+
   return {
     tileSize: TILE_SIZE,
     cols: COLS,
@@ -489,6 +496,7 @@ export function createOverworldLayout() {
     ambientItems,
     pondCells: POND_CELLS,
     townNpcs: TOWN_NPCS,
+    aiNpcs,
     landmarks: LANDMARK_CELLS,
     criticalPathCells,
   };
