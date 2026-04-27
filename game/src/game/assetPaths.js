@@ -40,6 +40,8 @@ import slimeIdleUrl from '../../../assets/enemies/slimes/slime1_idle.png';
 import plant1IdleUrl from '../../../assets/enemies/plants/plant1_idle.png';
 import vampire1IdleUrl from '../../../assets/enemies/vampires/vampire1_idle.png';
 import swordsmanIdleUrl from '../../../assets/enemies/swordsman/Swordsman_lvl1/Without_shadow/Swordsman_lvl1_Idle_without_shadow.png';
+import swordsmanAttackUrl from '../../../assets/enemies/swordsman/Swordsman_lvl1/Without_shadow/Swordsman_lvl1_attack_without_shadow.png';
+import swordsmanHurtUrl from '../../../assets/enemies/swordsman/Swordsman_lvl1/Without_shadow/Swordsman_lvl1_Hurt_without_shadow.png';
 import undeadGroundTilesUrl from '../../../assets/_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/PNG/Ground_rocks.png';
 import undeadObjectsUrl from '../../../assets/_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/PNG/Objects.png';
 import inventoryLayoutUrl from '../../../assets/ui/inventory/inventory-layout.png';
@@ -89,6 +91,8 @@ export const assetPaths = {
   plant1IdleUrl,
   vampire1IdleUrl,
   swordsmanIdleUrl,
+  swordsmanAttackUrl,
+  swordsmanHurtUrl,
   undeadGroundTilesUrl,
   undeadObjectsUrl,
   inventoryLayoutUrl,

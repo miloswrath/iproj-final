@@ -112,6 +112,14 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    this.load.spritesheet('swordsman-attack', assetPaths.swordsmanAttackUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+    this.load.spritesheet('swordsman-hurt', assetPaths.swordsmanHurtUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
     this.load.image('ui-inventory-layout', assetPaths.inventoryLayoutUrl);
     this.load.spritesheet('ui-inventory-layout-tiles', assetPaths.inventoryLayoutUrl, {
       frameWidth: 16,
