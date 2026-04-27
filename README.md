@@ -1,12 +1,12 @@
 # Dungeon Loop Runtime
 
-This repository now treats the Phaser/Vite runtime in `game/` as the actual game app, not a temporary sandbox.
+This repository uses the Phaser/Vite runtime in `playtest/` as the current playable app.
 
 ## Runtime
 
 - Framework: Vite + Phaser 3
-- Main app location: `game/`
-- Current main playable app: `game/` is the authoritative runtime for overworld, dungeon, and combat work.
+- Main app location: `playtest/`
+- Current main playable app: `playtest/` is the authoritative runtime for overworld, dungeon, and combat work.
 
 ## Local Development
 
@@ -14,7 +14,7 @@ This repository now treats the Phaser/Vite runtime in `game/` as the actual game
 1. Install dependencies:
 
 ```bash
-cd game
+cd playtest
 npm install
 ```
 
@@ -28,13 +28,13 @@ npm run dev
 
 ## Build Validation
 
-Run a production build from `game/`:
+Run a production build from `playtest/`:
 
 ```bash
 npm run build
 ```
 
-Run the scripted runtime diagnostic from `game/` while the dev server is running:
+Run the scripted runtime diagnostic from `playtest/` while the dev server is running:
 
 ```bash
 npm run diagnose:runtime
@@ -90,14 +90,14 @@ Acceptance criteria:
 
 Dungeon selection now uses a curated JSON pool instead of pure runtime generation.
 
-1. Edit `game/src/game/data/dungeons/curatedDungeonPool.json`.
+1. Edit `playtest/src/game/data/dungeons/curatedDungeonPool.json`.
 2. Add a new object under `dungeons` with:
 - `id`: unique identifier
 - `tileTheme`: `classic` or `undead`
 - `spawnCell`: `{ "x": <int>, "y": <int> }`
 - `rooms`: array of `{ "x", "y", "w", "h" }`
 - `corridors`: array of `{ "from": {"x","y"}, "to": {"x","y"}, "width" }`
-3. Run `npm run dev` from `game/` and press `R` in dungeon to cycle pool entries.
+3. Run `npm run dev` from `playtest/` and press `R` in dungeon to cycle pool entries.
 4. Confirm the HUD line `Active layout: <name> [<id>]` changes as you cycle.
 
 Validation contract enforced at runtime:
@@ -108,7 +108,7 @@ Validation contract enforced at runtime:
 
 Quick verification loop:
 1. Add or edit one curated dungeon entry.
-2. Start the game runtime with `npm run dev` in `game/`.
+2. Start the game runtime with `npm run dev` in `playtest/`.
 3. Enter dungeon and press `R` until your layout ID appears.
 4. Traverse from spawn through rooms/corridors and verify no isolated floor islands.
 5. If the layout never appears, fix schema/bounds/connectivity issues and retest.
