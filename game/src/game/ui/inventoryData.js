@@ -25,7 +25,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Iron Ore',
     type: 'Upgrade Material',
     description: 'Raw metal stock for future weapon and armor upgrades.',
-    iconFrame: 29,
+    iconFrame: 94,
   },
   crystalShard: {
     id: 'crystal-shard',
