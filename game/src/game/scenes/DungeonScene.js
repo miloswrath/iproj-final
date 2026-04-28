@@ -1168,7 +1168,7 @@ export class DungeonScene extends Phaser.Scene {
         continue;
       }
 
-      const shouldReturnToSpawn = enemy.chasing || enemy.enemyId === engagedEnemyId;
+      const shouldReturnToSpawn = enemy.enemyId === engagedEnemyId;
       const position = shouldReturnToSpawn && enemy.spawnCell
         ? this.cellToWorld(enemy.spawnCell.x, enemy.spawnCell.y)
         : { x: enemy.x, y: enemy.y };
