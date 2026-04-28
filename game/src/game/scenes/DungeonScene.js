@@ -112,7 +112,7 @@ const DEFAULT_VISUAL_PROFILE = {
 const DUNGEON_VISUAL_PROFILES = {
   'atrium-chain': {
     ...DEFAULT_VISUAL_PROFILE,
-    roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.treasure],
+    roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.debris],
     corridorGroup: DUNGEON_OBJECT_GROUPS.debris,
     torchMode: 'north-corners',
     torchEveryRoom: false,
@@ -145,7 +145,6 @@ const DUNGEON_VISUAL_PROFILES = {
     crackTint: 0xa9a4d9,
     crackAlpha: 0.26,
     roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels],
-    treasureGroup: DUNGEON_OBJECT_GROUPS.treasure,
     corridorGroup: DUNGEON_OBJECT_GROUPS.chains,
     decorStyle: 'gallery',
     torchMode: 'symmetry',
@@ -180,7 +179,6 @@ const DUNGEON_VISUAL_PROFILES = {
     crackTint: 0xd1b076,
     crackAlpha: 0.24,
     roomGroups: [DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.crates],
-    treasureGroup: DUNGEON_OBJECT_GROUPS.treasure,
     corridorGroup: DUNGEON_OBJECT_GROUPS.debris,
     torchMode: 'lantern-path',
     torchEveryRoom: true,
@@ -208,6 +206,7 @@ export class DungeonScene extends Phaser.Scene {
     this.qKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.prevDungeonKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.OPEN_BRACKET);
     this.nextDungeonKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CLOSED_BRACKET);
+    this.debugHudKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F2);
     this.digitKeys = [...DIGIT_KEY_CODES.keys()].map((code) => this.input.keyboard.addKey(code));
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
@@ -216,6 +215,7 @@ export class DungeonScene extends Phaser.Scene {
     this.dungeonNumberBuffer = '';
     this.dungeonNumberBufferTimer = null;
     this.combatStarting = false;
+    this.dungeonDebugHudVisible = false;
 
     this.layoutState = data?.layoutState ? data.layoutState : this.pickDungeonLayoutFromPool(data?.dungeonIndex);
     this.tileTheme = this.layoutState.tileTheme ?? 'classic';
@@ -258,11 +258,14 @@ export class DungeonScene extends Phaser.Scene {
   createBackground() {
     const id = this.layoutState?.id ?? 'atrium-chain';
     const base = this.visualProfile;
-    this.add.rectangle(DUNGEON_WIDTH / 2, DUNGEON_HEIGHT / 2, DUNGEON_WIDTH, DUNGEON_HEIGHT, base.shadow ?? 0x080d14, 1);
+    const cameraBounds = this.getCameraBounds();
+    const centerX = cameraBounds.x + cameraBounds.width / 2;
+    const centerY = cameraBounds.y + cameraBounds.height / 2;
+    this.add.rectangle(centerX, centerY, cameraBounds.width, cameraBounds.height, base.shadow ?? 0x080d14, 1);
 
     const haze = this.add.graphics();
     haze.fillGradientStyle(base.shadow ?? 0x080d14, base.shadow ?? 0x080d14, base.highlight ?? 0x39445b, base.roomGlow ?? 0x5d7199, 1);
-    haze.fillRect(0, 0, DUNGEON_WIDTH, DUNGEON_HEIGHT);
+    haze.fillRect(cameraBounds.x, cameraBounds.y, cameraBounds.width, cameraBounds.height);
 
     const glowA = this.add.ellipse(DUNGEON_WIDTH * 0.25, DUNGEON_HEIGHT * 0.22, 640, 360, base.roomGlow ?? 0x6f89aa, 0.12);
     const glowB = this.add.ellipse(DUNGEON_WIDTH * 0.74, DUNGEON_HEIGHT * 0.68, 760, 420, base.highlight ?? 0x59637a, 0.09);
@@ -307,14 +310,28 @@ export class DungeonScene extends Phaser.Scene {
 
   configureWorldBounds() {
     this.physics.world.setBounds(0, 0, DUNGEON_WIDTH, DUNGEON_HEIGHT);
-    this.cameras.main.setBounds(0, 0, DUNGEON_WIDTH, DUNGEON_HEIGHT);
+    const cameraBounds = this.getCameraBounds();
+    this.cameras.main.setBounds(cameraBounds.x, cameraBounds.y, cameraBounds.width, cameraBounds.height);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.cameras.main.setDeadzone(140, 96);
   }
 
+  getCameraBounds() {
+    const viewportWidth = this.scale.width;
+    const viewportHeight = this.scale.height;
+    const width = Math.max(DUNGEON_WIDTH, viewportWidth);
+    const height = Math.max(DUNGEON_HEIGHT, viewportHeight);
+    return {
+      x: DUNGEON_WIDTH >= viewportWidth ? 0 : -(viewportWidth - DUNGEON_WIDTH) / 2,
+      y: DUNGEON_HEIGHT >= viewportHeight ? 0 : -(viewportHeight - DUNGEON_HEIGHT) / 2,
+      width,
+      height,
+    };
+  }
+
   addInstructionHud() {
     this.add
-      .text(16, 12, 'Dungeon sandbox: WASD/Arrows move, Hold Shift to sprint', {
+      .text(16, 12, 'Move: WASD/Arrows | Hold Shift: sprint | E: open chest | I/Tab: inventory | Q: return', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#f4f4f4',
@@ -324,19 +341,8 @@ export class DungeonScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
 
-    this.add
-      .text(16, 40, 'E open chest | R next layout | [/] swap dungeon | type dungeon number | Q return overworld', {
-        fontFamily: 'monospace',
-        fontSize: '15px',
-        color: '#c9ddff',
-        backgroundColor: '#0000008c',
-        padding: { x: 8, y: 4 },
-      })
-      .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
-
     this.statusLabel = this.add
-      .text(16, 68, '', {
+      .text(16, 40, '', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#d9ffb8',
@@ -345,6 +351,18 @@ export class DungeonScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
+
+    this.debugControlLabel = this.add
+      .text(16, 68, 'Dev dungeon controls: R next layout | [/] swap dungeon | type dungeon number', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#c9ddff',
+        backgroundColor: '#0000009b',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
 
     this.layoutLabel = this.add
       .text(16, 96, '', {
@@ -355,9 +373,10 @@ export class DungeonScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
 
-    this.add
+    this.chaseDebugLabel = this.add
       .text(16, 124, 'Roaming enemies chase when they see you in a straight hall/room line', {
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -366,10 +385,11 @@ export class DungeonScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
 
     const progressionSummary = getPlaytestProgressionSummary();
-    this.add
+    this.progressionDebugLabel = this.add
       .text(16, 152, `Progression seed: open 1-2 dungeon chests to earn loot (${progressionSummary.rewardsEarned} earned so far)`, {
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -378,12 +398,13 @@ export class DungeonScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
   }
 
   createChestUi() {
     this.chestPrompt = this.add
-      .text(16, 180, 'Press E to open chest', {
+      .text(16, 68, 'Press E to open chest', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#fff1ad',
@@ -395,7 +416,7 @@ export class DungeonScene extends Phaser.Scene {
       .setVisible(false);
 
     this.chestRewardLabel = this.add
-      .text(16, 208, 'Latest chest reward: none yet', {
+      .text(16, 96, 'Latest chest reward: none yet', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#c8ffbc',
@@ -414,13 +435,21 @@ export class DungeonScene extends Phaser.Scene {
     this.layoutLabel.setText(`Dungeon ${dungeonNumber}/${total}: ${layoutName} [${layoutId}]`);
 
     if (this.layoutState.encounterCompleted) {
-      this.statusLabel.setText('Dungeon cleared: return to overworld or switch layouts.');
+      this.statusLabel.setText('Dungeon cleared: return to overworld.');
       return;
     }
 
     const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
     const totalEnemies = this.layoutState.enemyCount ?? 0;
     this.statusLabel.setText(`Roaming enemies: ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} active.`);
+  }
+
+  setDungeonDebugHudVisible(visible) {
+    this.dungeonDebugHudVisible = visible;
+    this.debugControlLabel?.setVisible(visible);
+    this.layoutLabel?.setVisible(visible);
+    this.chaseDebugLabel?.setVisible(visible);
+    this.progressionDebugLabel?.setVisible(visible);
   }
 
   spawnPlayer(spawnX, spawnY) {
@@ -1111,6 +1140,10 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   update() {
+    if (Phaser.Input.Keyboard.JustDown(this.debugHudKey)) {
+      this.setDungeonDebugHudVisible(!this.dungeonDebugHudVisible);
+    }
+
     const editorHasFocus = this.devModeController?.update() ?? false;
     if (editorHasFocus) {
       if (!this.editorCameraDetached) {
@@ -1141,23 +1174,25 @@ export class DungeonScene extends Phaser.Scene {
 
     this.updateChestInteraction();
 
-    if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
-      this.switchDungeonByOffset(1);
-      return;
-    }
+    if (this.dungeonDebugHudVisible) {
+      if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
+        this.switchDungeonByOffset(1);
+        return;
+      }
 
-    if (Phaser.Input.Keyboard.JustDown(this.prevDungeonKey)) {
-      this.switchDungeonByOffset(-1);
-      return;
-    }
+      if (Phaser.Input.Keyboard.JustDown(this.prevDungeonKey)) {
+        this.switchDungeonByOffset(-1);
+        return;
+      }
 
-    if (Phaser.Input.Keyboard.JustDown(this.nextDungeonKey)) {
-      this.switchDungeonByOffset(1);
-      return;
-    }
+      if (Phaser.Input.Keyboard.JustDown(this.nextDungeonKey)) {
+        this.switchDungeonByOffset(1);
+        return;
+      }
 
-    if (this.handleDungeonNumberInput()) {
-      return;
+      if (this.handleDungeonNumberInput()) {
+        return;
+      }
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.qKey)) {

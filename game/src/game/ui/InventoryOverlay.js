@@ -3,9 +3,12 @@ import Phaser from 'phaser';
 const OVERLAY_DEPTH = 20000;
 const SLOT_COLUMNS = 5;
 const SLOT_SIZE = 46;
+const SLOT_ICON_SIZE = 34;
 const SLOT_GAP = 10;
 const EQUIPMENT_COLUMNS = 2;
 const EQUIPMENT_SLOT_SIZE = 42;
+const EQUIPMENT_ICON_SIZE = 32;
+const DETAIL_ICON_SIZE = 44;
 
 export class InventoryOverlay {
   constructor(scene, inventoryState, options = {}) {
@@ -155,7 +158,7 @@ export class InventoryOverlay {
     this.detailIconFrame = this.scene.add.rectangle(detailPanelLeft + 226, sectionTop + 66, 60, 60, 0xd8b37f, 1)
       .setStrokeStyle(3, 0x7f5b34, 0.95);
     this.detailIcon = this.scene.add.image(detailPanelLeft + 226, sectionTop + 66, 'ui-inventory-icons', 0)
-      .setScale(2)
+      .setDisplaySize(DETAIL_ICON_SIZE, DETAIL_ICON_SIZE)
       .setAlpha(0);
 
     this.slotSprites = [];
@@ -171,7 +174,7 @@ export class InventoryOverlay {
       const slot = this.scene.add.rectangle(slotX, slotY, SLOT_SIZE, SLOT_SIZE, 0xdab482, 1)
         .setStrokeStyle(3, 0x8a623a, 0.95);
       const icon = this.scene.add.image(slotX, slotY, 'ui-inventory-icons', 0)
-        .setScale(2)
+        .setDisplaySize(SLOT_ICON_SIZE, SLOT_ICON_SIZE)
         .setVisible(false)
         .setAlpha(0);
       const quantity = this.scene.add.text(slotX + 16, slotY + 14, '', {
@@ -202,7 +205,7 @@ export class InventoryOverlay {
       const slotBox = this.scene.add.rectangle(slotX, slotY, EQUIPMENT_SLOT_SIZE, EQUIPMENT_SLOT_SIZE, 0xdab482, 1)
         .setStrokeStyle(3, 0x8a623a, 0.95);
       const icon = this.scene.add.image(slotX, slotY, 'ui-inventory-icons', 0)
-        .setScale(2)
+        .setDisplaySize(EQUIPMENT_ICON_SIZE, EQUIPMENT_ICON_SIZE)
         .setVisible(false)
         .setAlpha(0);
       const label = this.scene.add.text(slotX, slotY + 34, slotDef.label, {
@@ -350,7 +353,7 @@ export class InventoryOverlay {
         continue;
       }
 
-      icon.setFrame(item.iconFrame).setVisible(true).setAlpha(1);
+      icon.setFrame(item.iconFrame).setDisplaySize(SLOT_ICON_SIZE, SLOT_ICON_SIZE).setVisible(true).setAlpha(1);
       quantityText.setText(item.quantity > 1 ? `${item.quantity}` : '').setVisible(item.quantity > 1);
     }
 
@@ -364,7 +367,7 @@ export class InventoryOverlay {
       const slot = equipmentSlots[index];
       const icon = this.equipmentIcons[index];
       if (slot?.item) {
-        icon.setFrame(slot.item.iconFrame).setVisible(true).setAlpha(1);
+        icon.setFrame(slot.item.iconFrame).setDisplaySize(EQUIPMENT_ICON_SIZE, EQUIPMENT_ICON_SIZE).setVisible(true).setAlpha(1);
       } else {
         icon.setVisible(false).setAlpha(0);
       }
@@ -380,7 +383,7 @@ export class InventoryOverlay {
       return;
     }
 
-    this.detailIcon.setVisible(true).setAlpha(1).setFrame(selectedItem.iconFrame);
+    this.detailIcon.setVisible(true).setAlpha(1).setFrame(selectedItem.iconFrame).setDisplaySize(DETAIL_ICON_SIZE, DETAIL_ICON_SIZE);
     this.detailNameText.setText(selectedItem.name);
     this.detailTypeText.setText(`Type: ${selectedItem.type}`);
     this.detailQuantityText.setText(`Quantity: ${selectedItem.quantity}`);
