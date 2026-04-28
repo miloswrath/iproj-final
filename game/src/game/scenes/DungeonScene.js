@@ -1056,6 +1056,7 @@ export class DungeonScene extends Phaser.Scene {
       enemy.enemyId = enemyId;
       enemy.enemyStats = { ...enemyType };
       enemy.spawnCell = cell;
+      enemy.homeScale = enemyType.scale;
       enemy.chasing = false;
       enemy.body.setSize(enemy.width * 0.45, enemy.height * 0.55);
       this.playEnemyIdle(enemy);
@@ -1115,6 +1116,43 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     enemy.play(animKey);
+  }
+
+  resetRoamingEnemy(enemy, teleportToSpawn = true) {
+    if (!enemy?.active) {
+      return;
+    }
+
+    this.tweens.killTweensOf(enemy);
+    enemy.chasing = false;
+    enemy.setVelocity(0, 0);
+    enemy.clearTint();
+    enemy.setAlpha(1);
+    enemy.setScale(enemy.homeScale ?? enemy.enemyStats?.scale ?? 1);
+
+    if (teleportToSpawn && enemy.spawnCell) {
+      const spawn = this.cellToWorld(enemy.spawnCell.x, enemy.spawnCell.y);
+      enemy.setPosition(spawn.x, spawn.y);
+    }
+
+    if (enemy.body) {
+      enemy.body.reset(enemy.x, enemy.y);
+      enemy.body.setSize(enemy.width * 0.45, enemy.height * 0.55);
+      enemy.body.setVelocity(0, 0);
+    }
+
+    enemy.setDepth(enemy.y + ENEMY_DEPTH_OFFSET);
+    this.playEnemyIdle(enemy);
+  }
+
+  resetRoamingEnemies(teleportToSpawn = true) {
+    if (!this.enemies) {
+      return;
+    }
+
+    this.enemies.getChildren().forEach((enemy) => {
+      this.resetRoamingEnemy(enemy, teleportToSpawn);
+    });
   }
 
   computeLayoutSeed(seedText) {
@@ -1338,9 +1376,7 @@ export class DungeonScene extends Phaser.Scene {
 
     this.combatStarting = true;
     this.player.setVelocity(0, 0);
-    if (this.enemies) {
-      this.enemies.getChildren().forEach((enemySprite) => enemySprite.setVelocity(0, 0));
-    }
+    this.resetRoamingEnemies(true);
 
     const enemyStats = { ...(enemy?.enemyStats ?? ENEMY_TYPES[0]) };
     const playerStats = { ...getPlaytestCombatantState() };
