@@ -4,7 +4,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Field Tonic',
     type: 'Consumable',
     description: 'Restore a chunk of HP during combat to stabilize a risky run.',
-    iconFrame: 85,
+    iconFrame: 84,
     combat: {
       usable: true,
       effect: {
