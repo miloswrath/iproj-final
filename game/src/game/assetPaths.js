@@ -47,6 +47,7 @@ import undeadObjectsUrl from '../../../assets/_source/craftpix-net-695666-free-u
 import inventoryLayoutUrl from '../../../assets/ui/inventory/inventory-layout.png';
 import inventoryFrameTilesUrl from '../../../assets/ui/inventory/inventory-frame-tiles.png';
 import inventoryIconsUrl from '../../../assets/ui/inventory/inventory-icons.png';
+import fieldTonicIconUrl from '../../../assets/ui/inventory/field-tonic-icon.png';
 import npcGirl1IdleUrl from '../../../assets/characters/girl-1/idle.png';
 import npcGirl1WalkUrl from '../../../assets/characters/girl-1/walk.png';
 import npcGirl1DialogueUrl from '../../../assets/characters/girl-1/dialogue.png';
@@ -101,6 +102,7 @@ export const assetPaths = {
   inventoryLayoutUrl,
   inventoryFrameTilesUrl,
   inventoryIconsUrl,
+  fieldTonicIconUrl,
   npcGirl1IdleUrl,
   npcGirl1WalkUrl,
   npcGirl1DialogueUrl,

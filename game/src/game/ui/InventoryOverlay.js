@@ -353,7 +353,7 @@ export class InventoryOverlay {
         continue;
       }
 
-      icon.setFrame(item.iconFrame).setDisplaySize(SLOT_ICON_SIZE, SLOT_ICON_SIZE).setVisible(true).setAlpha(1);
+      this.applyItemIcon(icon, item, SLOT_ICON_SIZE);
       quantityText.setText(item.quantity > 1 ? `${item.quantity}` : '').setVisible(item.quantity > 1);
     }
 
@@ -367,7 +367,7 @@ export class InventoryOverlay {
       const slot = equipmentSlots[index];
       const icon = this.equipmentIcons[index];
       if (slot?.item) {
-        icon.setFrame(slot.item.iconFrame).setDisplaySize(EQUIPMENT_ICON_SIZE, EQUIPMENT_ICON_SIZE).setVisible(true).setAlpha(1);
+        this.applyItemIcon(icon, slot.item, EQUIPMENT_ICON_SIZE);
       } else {
         icon.setVisible(false).setAlpha(0);
       }
@@ -383,11 +383,24 @@ export class InventoryOverlay {
       return;
     }
 
-    this.detailIcon.setVisible(true).setAlpha(1).setFrame(selectedItem.iconFrame).setDisplaySize(DETAIL_ICON_SIZE, DETAIL_ICON_SIZE);
+    this.applyItemIcon(this.detailIcon, selectedItem, DETAIL_ICON_SIZE);
     this.detailNameText.setText(selectedItem.name);
     this.detailTypeText.setText(`Type: ${selectedItem.type}`);
     this.detailQuantityText.setText(`Quantity: ${selectedItem.quantity}`);
     this.detailDescriptionText.setText(selectedItem.description);
     this.emptyText.setText('');
+  }
+
+  applyItemIcon(icon, item, size) {
+    const textureKey = item.iconTexture ?? 'ui-inventory-icons';
+    icon.setTexture(textureKey);
+    if (textureKey === 'ui-inventory-icons') {
+      icon.setFrame(item.iconFrame);
+    }
+
+    icon
+      .setDisplaySize(size, size)
+      .setVisible(true)
+      .setAlpha(1);
   }
 }

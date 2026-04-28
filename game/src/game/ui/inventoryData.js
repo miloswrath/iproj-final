@@ -4,7 +4,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Field Tonic',
     type: 'Consumable',
     description: 'Restore a chunk of HP during combat to stabilize a risky run.',
-    iconFrame: 84,
+    iconTexture: 'ui-field-tonic-icon',
     combat: {
       usable: true,
       effect: {
@@ -43,7 +43,8 @@ export function createInventoryEntry(itemDef, quantity) {
     type: itemDef.type,
     quantity,
     description: itemDef.description,
-    iconFrame: itemDef.iconFrame,
+    iconFrame: itemDef.iconFrame ?? 0,
+    iconTexture: itemDef.iconTexture ?? 'ui-inventory-icons',
     combat: itemDef.combat ?? null,
   };
 }

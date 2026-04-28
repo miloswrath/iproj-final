@@ -133,6 +133,7 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 16,
     });
+    this.load.image('ui-field-tonic-icon', assetPaths.fieldTonicIconUrl);
     this.load.spritesheet('npc-girl-1-idle', assetPaths.npcGirl1IdleUrl, {
       frameWidth: 128,
       frameHeight: 128,
