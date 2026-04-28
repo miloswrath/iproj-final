@@ -173,6 +173,12 @@ export function setPlaytestPlayerHp(hp) {
   return progressionState.playerCombat.hp;
 }
 
+export function resetPlaytestPlayerHp() {
+  normalizeInventoryState();
+  progressionState.playerCombat.hp = progressionState.playerCombat.maxHp;
+  return progressionState.playerCombat.hp;
+}
+
 export function applyCombatItemEffect(itemId) {
   normalizeInventoryState();
 

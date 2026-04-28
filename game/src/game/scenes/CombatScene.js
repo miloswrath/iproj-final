@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   applyCombatItemEffect,
   getCombatUsableInventoryItems,
+  resetPlaytestPlayerHp,
   setPlaytestPlayerHp,
 } from '../playtestProgression';
 
@@ -927,6 +928,7 @@ export class CombatScene extends Phaser.Scene {
       return;
     }
 
+    resetPlaytestPlayerHp();
     this.scene.start('overworld', {
       spawnX: this.returnContext.returnX ?? 170,
       spawnY: this.returnContext.returnY ?? 170,
