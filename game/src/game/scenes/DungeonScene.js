@@ -1046,7 +1046,8 @@ export class DungeonScene extends Phaser.Scene {
       }
 
       const cell = enemySpawnCells[index];
-      const center = this.cellToWorld(cell.x, cell.y);
+      const savedPosition = this.layoutState.enemyPositions?.[enemyId] ?? null;
+      const center = savedPosition ?? this.cellToWorld(cell.x, cell.y);
       const enemyType = ENEMY_TYPES[this.cellHash(cell.x, cell.y, 701 + index) % ENEMY_TYPES.length];
       const enemy = this.physics.add
         .sprite(center.x, center.y, enemyType.spriteKey, 0)
@@ -1153,6 +1154,32 @@ export class DungeonScene extends Phaser.Scene {
     this.enemies.getChildren().forEach((enemy) => {
       this.resetRoamingEnemy(enemy, teleportToSpawn);
     });
+  }
+
+  saveEnemyReturnPositions(engagedEnemyId = null) {
+    if (!this.enemies) {
+      return;
+    }
+
+    const enemyPositions = {};
+
+    for (const enemy of this.enemies.getChildren()) {
+      if (!enemy.active || !enemy.enemyId) {
+        continue;
+      }
+
+      const shouldReturnToSpawn = enemy.chasing || enemy.enemyId === engagedEnemyId;
+      const position = shouldReturnToSpawn && enemy.spawnCell
+        ? this.cellToWorld(enemy.spawnCell.x, enemy.spawnCell.y)
+        : { x: enemy.x, y: enemy.y };
+
+      enemyPositions[enemy.enemyId] = {
+        x: position.x,
+        y: position.y,
+      };
+    }
+
+    this.layoutState.enemyPositions = enemyPositions;
   }
 
   computeLayoutSeed(seedText) {
@@ -1376,7 +1403,10 @@ export class DungeonScene extends Phaser.Scene {
 
     this.combatStarting = true;
     this.player.setVelocity(0, 0);
-    this.resetRoamingEnemies(true);
+    this.saveEnemyReturnPositions(enemy?.enemyId ?? null);
+    if (this.enemies) {
+      this.enemies.getChildren().forEach((enemySprite) => enemySprite.setVelocity(0, 0));
+    }
 
     const enemyStats = { ...(enemy?.enemyStats ?? ENEMY_TYPES[0]) };
     const playerStats = { ...getPlaytestCombatantState() };
@@ -1510,6 +1540,12 @@ export class DungeonScene extends Phaser.Scene {
       spawnCell: { ...layoutState.spawnCell },
       tileTheme: layoutState.tileTheme,
       defeatedEnemyIds: [...(layoutState.defeatedEnemyIds ?? [])],
+      enemyPositions: Object.fromEntries(
+        Object.entries(layoutState.enemyPositions ?? {}).map(([enemyId, position]) => [
+          enemyId,
+          { ...position },
+        ]),
+      ),
       enemyCount: layoutState.enemyCount ?? 0,
       encounterCompleted: layoutState.encounterCompleted ?? false,
       clearRecorded: layoutState.clearRecorded ?? false,
