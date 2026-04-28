@@ -4,7 +4,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Field Tonic',
     type: 'Consumable',
     description: 'Restore a chunk of HP during combat to stabilize a risky run.',
-    iconFrame: 78,
+    iconFrame: 85,
     combat: {
       usable: true,
       effect: {
@@ -32,7 +32,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Crystal Shard',
     type: 'Upgrade Material',
     description: 'Dungeon reward material reserved for upgrades, contracts, or unlock costs.',
-    iconFrame: 77,
+    iconFrame: 97,
   },
 };
 
