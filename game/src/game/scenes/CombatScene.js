@@ -155,6 +155,7 @@ export class CombatScene extends Phaser.Scene {
       hp: data?.playerStats?.hp ?? data?.playerStats?.maxHp ?? 30,
       attack: data?.playerStats?.attack ?? 8,
       defendReduction: data?.playerStats?.defendReduction ?? 6,
+      level: data?.playerStats?.level ?? 1,
     };
 
     this.enemyStats = {
@@ -163,6 +164,7 @@ export class CombatScene extends Phaser.Scene {
       hp: data?.enemyStats?.maxHp ?? 24,
       attack: data?.enemyStats?.attack ?? 6,
       spriteKey: data?.enemyStats?.spriteKey ?? 'slime-idle',
+      level: data?.enemyStats?.level ?? 1,
     };
 
     this.playerTurn = true;
@@ -361,7 +363,7 @@ export class CombatScene extends Phaser.Scene {
       color: '#c6dcff',
     });
 
-    this.playerNameText = this.add.text(this.ui.playerCardLeft + 18, statusTop + 18, 'Witch Kitty', {
+    this.playerNameText = this.add.text(this.ui.playerCardLeft + 18, statusTop + 18, `Witch Kitty Lv.${this.playerStats.level}`, {
       fontFamily: 'Georgia',
       fontSize: `${nameSize}px`,
       color: '#f6fbff',
@@ -938,7 +940,7 @@ export class CombatScene extends Phaser.Scene {
 
   refreshHud(logMessage) {
     this.turnText.setText(this.result ? `Result: ${this.result.toUpperCase()}` : this.playerTurn ? 'Turn: Player' : 'Turn: Enemy');
-    this.enemyNameText.setText(this.enemyStats.name);
+    this.enemyNameText.setText(`${this.enemyStats.name} Lv.${this.enemyStats.level}`);
     this.playerHpText.setText(`HP ${this.playerStats.hp}/${this.playerStats.maxHp}`);
     this.enemyHpText.setText(`HP ${this.enemyStats.hp}/${this.enemyStats.maxHp}`);
     this.logText.setText(this.actionLog.slice(-3).join('\n'));

@@ -8,6 +8,12 @@ const EQUIPMENT_SLOT_DEFS = [
   { key: 'boots', label: 'Boots' },
 ];
 
+const BASE_PLAYER_COMBAT = {
+  maxHp: 36,
+  attack: 9,
+  defendReduction: 6,
+};
+
 function createEmptyInventorySlots() {
   return Array.from({ length: INVENTORY_SLOTS }, () => null);
 }
@@ -18,10 +24,8 @@ function createEmptyEquipmentSlots() {
 
 const progressionState = {
   playerCombat: {
-    maxHp: 36,
-    hp: 36,
-    attack: 9,
-    defendReduction: 6,
+    ...BASE_PLAYER_COMBAT,
+    hp: BASE_PLAYER_COMBAT.maxHp,
   },
   inventory: {
     slots: INVENTORY_SLOTS,
@@ -36,19 +40,35 @@ const progressionState = {
   lastReward: null,
 };
 
+function getProgressionLevel() {
+  return Math.max(1, progressionState.totals.dungeonClears + 1);
+}
+
+function getLevelCombatFloor(level = getProgressionLevel()) {
+  const levelOffset = Math.max(0, level - 1);
+
+  return {
+    maxHp: BASE_PLAYER_COMBAT.maxHp + (levelOffset * 4),
+    attack: BASE_PLAYER_COMBAT.attack + Math.floor(levelOffset * 1.4),
+    defendReduction: BASE_PLAYER_COMBAT.defendReduction + Math.floor(levelOffset * 0.8),
+  };
+}
+
 function normalizeInventoryState() {
   if (!progressionState.playerCombat || typeof progressionState.playerCombat !== 'object') {
     progressionState.playerCombat = {
-      maxHp: 36,
-      hp: 36,
-      attack: 9,
-      defendReduction: 6,
+      ...BASE_PLAYER_COMBAT,
+      hp: BASE_PLAYER_COMBAT.maxHp,
     };
   }
 
-  progressionState.playerCombat.maxHp = Math.max(progressionState.playerCombat.maxHp ?? 36, 36);
-  progressionState.playerCombat.attack = Math.max(progressionState.playerCombat.attack ?? 9, 9);
-  progressionState.playerCombat.defendReduction = Math.max(progressionState.playerCombat.defendReduction ?? 6, 6);
+  const levelFloor = getLevelCombatFloor();
+  progressionState.playerCombat.maxHp = Math.max(progressionState.playerCombat.maxHp ?? levelFloor.maxHp, levelFloor.maxHp);
+  progressionState.playerCombat.attack = Math.max(progressionState.playerCombat.attack ?? levelFloor.attack, levelFloor.attack);
+  progressionState.playerCombat.defendReduction = Math.max(
+    progressionState.playerCombat.defendReduction ?? levelFloor.defendReduction,
+    levelFloor.defendReduction,
+  );
   progressionState.playerCombat.hp = Math.max(
     0,
     Math.min(
@@ -79,12 +99,21 @@ export function getPlaytestInventoryState() {
 
 export function getPlaytestCombatantState() {
   normalizeInventoryState();
-  return progressionState.playerCombat;
+  return {
+    ...progressionState.playerCombat,
+    level: getProgressionLevel(),
+  };
+}
+
+export function getPlaytestLevel() {
+  normalizeInventoryState();
+  return getProgressionLevel();
 }
 
 export function getPlaytestProgressionSummary() {
   normalizeInventoryState();
   return {
+    level: getProgressionLevel(),
     dungeonClears: progressionState.totals.dungeonClears,
     chestsOpened: progressionState.totals.chestsOpened,
     rewardsEarned: progressionState.totals.rewardsEarned,
@@ -271,5 +300,7 @@ export function recordDungeonClear(layoutState) {
 
   layoutState.clearRecorded = true;
   progressionState.totals.dungeonClears += 1;
+  normalizeInventoryState();
+  progressionState.playerCombat.hp = progressionState.playerCombat.maxHp;
   return true;
 }

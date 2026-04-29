@@ -9,6 +9,7 @@ import {
   claimChestRewards,
   getPlaytestCombatantState,
   getPlaytestInventoryState,
+  getPlaytestLevel,
   getPlaytestProgressionSummary,
   recordDungeonClear,
 } from '../playtestProgression';
@@ -93,12 +94,12 @@ const ENEMY_TYPES = [
   { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle', scale: 1.0 },
 ];
 
-const DUNGEON_COMBAT_TUNING = [
-  { hpScale: 0.62, attackScale: 0.5 },
-  { hpScale: 0.72, attackScale: 0.58 },
-  { hpScale: 0.84, attackScale: 0.68 },
-  { hpScale: 0.94, attackScale: 0.78 },
-  { hpScale: 1.05, attackScale: 0.88 },
+const DUNGEON_DEPTH_TUNING = [
+  { hpBonus: 0, attackBonus: 0 },
+  { hpBonus: 0.04, attackBonus: 0.03 },
+  { hpBonus: 0.08, attackBonus: 0.06 },
+  { hpBonus: 0.12, attackBonus: 0.09 },
+  { hpBonus: 0.16, attackBonus: 0.12 },
 ];
 
 const DEFAULT_VISUAL_PROFILE = {
@@ -400,7 +401,7 @@ export class DungeonScene extends Phaser.Scene {
 
     const progressionSummary = getPlaytestProgressionSummary();
     this.progressionDebugLabel = this.add
-      .text(16, 152, `Progression seed: open 1-2 dungeon chests to earn loot (${progressionSummary.rewardsEarned} earned so far)`, {
+      .text(16, 152, `Progression seed: level ${progressionSummary.level} | ${progressionSummary.rewardsEarned} loot earned`, {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#b9ffd8',
@@ -490,7 +491,8 @@ export class DungeonScene extends Phaser.Scene {
 
     const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
     const totalEnemies = this.layoutState.enemyCount ?? 0;
-    this.statusLabel.setText(`Roaming enemies: ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} active.`);
+    const progressionLevel = getPlaytestLevel();
+    this.statusLabel.setText(`Level ${progressionLevel} dungeon | Roaming enemies: ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} active.`);
   }
 
   setDungeonDebugHudVisible(visible) {
@@ -1502,14 +1504,19 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   applyDungeonCombatTuning(enemyStats) {
-    const tierIndex = Phaser.Math.Clamp(this.layoutState.poolIndex ?? 0, 0, DUNGEON_COMBAT_TUNING.length - 1);
-    const tuning = DUNGEON_COMBAT_TUNING[tierIndex] ?? DUNGEON_COMBAT_TUNING[0];
+    const level = getPlaytestLevel();
+    const levelOffset = Math.max(0, level - 1);
+    const depthIndex = Phaser.Math.Clamp(this.layoutState.poolIndex ?? 0, 0, DUNGEON_DEPTH_TUNING.length - 1);
+    const depthTuning = DUNGEON_DEPTH_TUNING[depthIndex] ?? DUNGEON_DEPTH_TUNING[0];
+    const hpScale = 0.62 + (levelOffset * 0.12) + depthTuning.hpBonus;
+    const attackScale = 0.5 + (levelOffset * 0.08) + depthTuning.attackBonus;
 
     return {
       ...enemyStats,
-      maxHp: Math.max(10, Math.round(enemyStats.maxHp * tuning.hpScale)),
-      attack: Math.max(2, Math.round(enemyStats.attack * tuning.attackScale)),
-      tier: tierIndex + 1,
+      maxHp: Math.max(10, Math.round(enemyStats.maxHp * hpScale)),
+      attack: Math.max(2, Math.round(enemyStats.attack * attackScale)),
+      level,
+      tier: depthIndex + 1,
     };
   }
 
