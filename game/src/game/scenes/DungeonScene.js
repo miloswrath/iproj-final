@@ -9,6 +9,7 @@ import {
   claimChestRewards,
   getPlaytestCombatantState,
   getPlaytestInventoryState,
+  getPlaytestLevel,
   getPlaytestProgressionSummary,
   recordDungeonClear,
 } from '../playtestProgression';
@@ -50,10 +51,13 @@ const FIRE_FRAMES_PER_VARIANT = 6;
 const FALLBACK_DUNGEON_POOL_SIZE = 3;
 const ACTIVE_CURATED_DUNGEON_COUNT = 5;
 const ENEMY_LINE_OF_SIGHT_CELLS = 8;
-const ENEMY_CHASE_SPEED = 120;
+const ENEMY_CHASE_SPEED = 150;
+const ENEMY_PATH_RECALC_MS = 220;
+const ENEMY_BURST_MIN_DISTANCE = 80;
 const ENEMY_COUNT_MIN = 2;
 const ENEMY_COUNT_MAX = 4;
 const CHEST_INTERACT_DISTANCE = 34;
+const EXIT_PORTAL_INTERACT_DISTANCE = 54;
 
 const DIGIT_KEY_CODES = new Map([
   [Phaser.Input.Keyboard.KeyCodes.ZERO, 0],
@@ -92,6 +96,41 @@ const ENEMY_TYPES = [
   { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle', scale: 1.0 },
 ];
 
+const ENEMY_CHASE_PROFILES = {
+  'slime-idle': {
+    speed: 142,
+    burstSpeed: 270,
+    burstDuration: 330,
+    burstCooldown: 1250,
+    burstJitter: 450,
+    burstKind: 'leap',
+  },
+  'plant1-idle': {
+    speed: 132,
+    burstSpeed: 0,
+    burstDuration: 0,
+    burstCooldown: 0,
+    burstJitter: 0,
+    burstKind: null,
+  },
+  'vampire1-idle': {
+    speed: 168,
+    burstSpeed: 330,
+    burstDuration: 240,
+    burstCooldown: 1050,
+    burstJitter: 350,
+    burstKind: 'dash',
+  },
+};
+
+const DUNGEON_DEPTH_TUNING = [
+  { hpBonus: 0, attackBonus: 0 },
+  { hpBonus: 0.04, attackBonus: 0.03 },
+  { hpBonus: 0.08, attackBonus: 0.06 },
+  { hpBonus: 0.12, attackBonus: 0.09 },
+  { hpBonus: 0.16, attackBonus: 0.12 },
+];
+
 const DEFAULT_VISUAL_PROFILE = {
   floorColors: CLASSIC_FLOOR_COLORS,
   wallColors: CLASSIC_WALL_COLORS,
@@ -112,7 +151,7 @@ const DEFAULT_VISUAL_PROFILE = {
 const DUNGEON_VISUAL_PROFILES = {
   'atrium-chain': {
     ...DEFAULT_VISUAL_PROFILE,
-    roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.treasure],
+    roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.debris],
     corridorGroup: DUNGEON_OBJECT_GROUPS.debris,
     torchMode: 'north-corners',
     torchEveryRoom: false,
@@ -145,7 +184,6 @@ const DUNGEON_VISUAL_PROFILES = {
     crackTint: 0xa9a4d9,
     crackAlpha: 0.26,
     roomGroups: [DUNGEON_OBJECT_GROUPS.crates, DUNGEON_OBJECT_GROUPS.vessels],
-    treasureGroup: DUNGEON_OBJECT_GROUPS.treasure,
     corridorGroup: DUNGEON_OBJECT_GROUPS.chains,
     decorStyle: 'gallery',
     torchMode: 'symmetry',
@@ -180,7 +218,6 @@ const DUNGEON_VISUAL_PROFILES = {
     crackTint: 0xd1b076,
     crackAlpha: 0.24,
     roomGroups: [DUNGEON_OBJECT_GROUPS.vessels, DUNGEON_OBJECT_GROUPS.crates],
-    treasureGroup: DUNGEON_OBJECT_GROUPS.treasure,
     corridorGroup: DUNGEON_OBJECT_GROUPS.debris,
     torchMode: 'lantern-path',
     torchEveryRoom: true,
@@ -208,6 +245,7 @@ export class DungeonScene extends Phaser.Scene {
     this.qKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.prevDungeonKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.OPEN_BRACKET);
     this.nextDungeonKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CLOSED_BRACKET);
+    this.debugHudKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F2);
     this.digitKeys = [...DIGIT_KEY_CODES.keys()].map((code) => this.input.keyboard.addKey(code));
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
@@ -216,6 +254,7 @@ export class DungeonScene extends Phaser.Scene {
     this.dungeonNumberBuffer = '';
     this.dungeonNumberBufferTimer = null;
     this.combatStarting = false;
+    this.dungeonDebugHudVisible = false;
 
     this.layoutState = data?.layoutState ? data.layoutState : this.pickDungeonLayoutFromPool(data?.dungeonIndex);
     this.tileTheme = this.layoutState.tileTheme ?? 'classic';
@@ -237,6 +276,7 @@ export class DungeonScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.obstacles);
     this.spawnRoamingEnemies();
+    this.createExitPortal(spawnPosition);
     this.addInstructionHud();
     this.updateEncounterUi();
     this.devModeController = new DeveloperModeController(this, {
@@ -258,11 +298,14 @@ export class DungeonScene extends Phaser.Scene {
   createBackground() {
     const id = this.layoutState?.id ?? 'atrium-chain';
     const base = this.visualProfile;
-    this.add.rectangle(DUNGEON_WIDTH / 2, DUNGEON_HEIGHT / 2, DUNGEON_WIDTH, DUNGEON_HEIGHT, base.shadow ?? 0x080d14, 1);
+    const cameraBounds = this.getCameraBounds();
+    const centerX = cameraBounds.x + cameraBounds.width / 2;
+    const centerY = cameraBounds.y + cameraBounds.height / 2;
+    this.add.rectangle(centerX, centerY, cameraBounds.width, cameraBounds.height, base.shadow ?? 0x080d14, 1);
 
     const haze = this.add.graphics();
     haze.fillGradientStyle(base.shadow ?? 0x080d14, base.shadow ?? 0x080d14, base.highlight ?? 0x39445b, base.roomGlow ?? 0x5d7199, 1);
-    haze.fillRect(0, 0, DUNGEON_WIDTH, DUNGEON_HEIGHT);
+    haze.fillRect(cameraBounds.x, cameraBounds.y, cameraBounds.width, cameraBounds.height);
 
     const glowA = this.add.ellipse(DUNGEON_WIDTH * 0.25, DUNGEON_HEIGHT * 0.22, 640, 360, base.roomGlow ?? 0x6f89aa, 0.12);
     const glowB = this.add.ellipse(DUNGEON_WIDTH * 0.74, DUNGEON_HEIGHT * 0.68, 760, 420, base.highlight ?? 0x59637a, 0.09);
@@ -307,14 +350,28 @@ export class DungeonScene extends Phaser.Scene {
 
   configureWorldBounds() {
     this.physics.world.setBounds(0, 0, DUNGEON_WIDTH, DUNGEON_HEIGHT);
-    this.cameras.main.setBounds(0, 0, DUNGEON_WIDTH, DUNGEON_HEIGHT);
+    const cameraBounds = this.getCameraBounds();
+    this.cameras.main.setBounds(cameraBounds.x, cameraBounds.y, cameraBounds.width, cameraBounds.height);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.cameras.main.setDeadzone(140, 96);
   }
 
+  getCameraBounds() {
+    const viewportWidth = this.scale.width;
+    const viewportHeight = this.scale.height;
+    const width = Math.max(DUNGEON_WIDTH, viewportWidth);
+    const height = Math.max(DUNGEON_HEIGHT, viewportHeight);
+    return {
+      x: DUNGEON_WIDTH >= viewportWidth ? 0 : -(viewportWidth - DUNGEON_WIDTH) / 2,
+      y: DUNGEON_HEIGHT >= viewportHeight ? 0 : -(viewportHeight - DUNGEON_HEIGHT) / 2,
+      width,
+      height,
+    };
+  }
+
   addInstructionHud() {
     this.add
-      .text(16, 12, 'Dungeon sandbox: WASD/Arrows move, Hold Shift to sprint', {
+      .text(16, 12, 'Move: WASD/Arrows | Hold Shift: sprint | E: interact | I/Tab: inventory | Q: quick return', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#f4f4f4',
@@ -324,19 +381,8 @@ export class DungeonScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
 
-    this.add
-      .text(16, 40, 'E open chest | R next layout | [/] swap dungeon | type dungeon number | Q return overworld', {
-        fontFamily: 'monospace',
-        fontSize: '15px',
-        color: '#c9ddff',
-        backgroundColor: '#0000008c',
-        padding: { x: 8, y: 4 },
-      })
-      .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
-
     this.statusLabel = this.add
-      .text(16, 68, '', {
+      .text(16, 40, '', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#d9ffb8',
@@ -345,6 +391,18 @@ export class DungeonScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
+
+    this.debugControlLabel = this.add
+      .text(16, 68, 'Dev dungeon controls: R next layout | [/] swap dungeon | type dungeon number', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#c9ddff',
+        backgroundColor: '#0000009b',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
 
     this.layoutLabel = this.add
       .text(16, 96, '', {
@@ -355,9 +413,10 @@ export class DungeonScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
 
-    this.add
+    this.chaseDebugLabel = this.add
       .text(16, 124, 'Roaming enemies chase when they see you in a straight hall/room line', {
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -366,11 +425,12 @@ export class DungeonScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
 
     const progressionSummary = getPlaytestProgressionSummary();
-    this.add
-      .text(16, 152, `Progression seed: open 1-2 dungeon chests to earn loot (${progressionSummary.rewardsEarned} earned so far)`, {
+    this.progressionDebugLabel = this.add
+      .text(16, 152, `Progression seed: level ${progressionSummary.level} | ${progressionSummary.rewardsEarned} loot earned`, {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#b9ffd8',
@@ -378,12 +438,13 @@ export class DungeonScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
   }
 
   createChestUi() {
     this.chestPrompt = this.add
-      .text(16, 180, 'Press E to open chest', {
+      .text(16, 68, 'Press E to open chest', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#fff1ad',
@@ -394,8 +455,20 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH)
       .setVisible(false);
 
+    this.exitPortalPrompt = this.add
+      .text(16, 68, 'Press E to exit dungeon', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#d6f0ff',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
+
     this.chestRewardLabel = this.add
-      .text(16, 208, 'Latest chest reward: none yet', {
+      .text(16, 96, 'Latest chest reward: none yet', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#c8ffbc',
@@ -406,6 +479,33 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
   }
 
+  createExitPortal(spawnPosition) {
+    this.exitPortalCenter = { x: spawnPosition.x, y: spawnPosition.y };
+
+    const base = this.add
+      .ellipse(spawnPosition.x, spawnPosition.y + 15, 70, 28, 0x62c7ff, 0.26)
+      .setDepth(spawnPosition.y - 8);
+    const ring = this.add
+      .ellipse(spawnPosition.x, spawnPosition.y + 10, 54, 22, 0x0e1830, 0.12)
+      .setStrokeStyle(3, 0xbcecff, 0.78)
+      .setDepth(spawnPosition.y - 7);
+    const glow = this.add
+      .circle(spawnPosition.x, spawnPosition.y - 2, 22, 0x8fdcff, 0.18)
+      .setStrokeStyle(2, 0xe6fbff, 0.52)
+      .setDepth(spawnPosition.y - 6);
+
+    this.tweens.add({
+      targets: [base, ring, glow],
+      alpha: '+=0.18',
+      scaleX: 1.08,
+      scaleY: 1.08,
+      duration: 850,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
   updateEncounterUi() {
     const layoutId = this.layoutState.id ?? 'generated';
     const layoutName = this.layoutState.name ?? 'Generated Dungeon';
@@ -413,14 +513,27 @@ export class DungeonScene extends Phaser.Scene {
     const total = this.getDungeonPoolSize();
     this.layoutLabel.setText(`Dungeon ${dungeonNumber}/${total}: ${layoutName} [${layoutId}]`);
 
-    if (this.layoutState.encounterCompleted) {
-      this.statusLabel.setText('Dungeon cleared: return to overworld or switch layouts.');
+    if (this.isDungeonExitUnlocked()) {
+      this.statusLabel.setText('Dungeon cleared: use the spawn portal to return.');
       return;
     }
 
     const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
     const totalEnemies = this.layoutState.enemyCount ?? 0;
-    this.statusLabel.setText(`Roaming enemies: ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} active.`);
+    const openedChests = this.getOpenedChestCount();
+    const totalChests = this.getChestCount();
+    const progressionLevel = getPlaytestLevel();
+    this.statusLabel.setText(
+      `Level ${progressionLevel} dungeon | Enemies ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} | Chests ${openedChests}/${totalChests}`,
+    );
+  }
+
+  setDungeonDebugHudVisible(visible) {
+    this.dungeonDebugHudVisible = visible;
+    this.debugControlLabel?.setVisible(visible);
+    this.layoutLabel?.setVisible(visible);
+    this.chaseDebugLabel?.setVisible(visible);
+    this.progressionDebugLabel?.setVisible(visible);
   }
 
   spawnPlayer(spawnX, spawnY) {
@@ -1017,7 +1130,8 @@ export class DungeonScene extends Phaser.Scene {
       }
 
       const cell = enemySpawnCells[index];
-      const center = this.cellToWorld(cell.x, cell.y);
+      const savedPosition = this.layoutState.enemyPositions?.[enemyId] ?? null;
+      const center = savedPosition ?? this.cellToWorld(cell.x, cell.y);
       const enemyType = ENEMY_TYPES[this.cellHash(cell.x, cell.y, 701 + index) % ENEMY_TYPES.length];
       const enemy = this.physics.add
         .sprite(center.x, center.y, enemyType.spriteKey, 0)
@@ -1027,7 +1141,14 @@ export class DungeonScene extends Phaser.Scene {
       enemy.enemyId = enemyId;
       enemy.enemyStats = { ...enemyType };
       enemy.spawnCell = cell;
+      enemy.homeScale = enemyType.scale;
       enemy.chasing = false;
+      enemy.pathCells = [];
+      enemy.pathTargetKey = null;
+      enemy.nextPathRefreshAt = 0;
+      enemy.bursting = false;
+      enemy.burstUntil = 0;
+      enemy.nextBurstAt = 0;
       enemy.body.setSize(enemy.width * 0.45, enemy.height * 0.55);
       this.playEnemyIdle(enemy);
       this.enemies.add(enemy);
@@ -1088,6 +1209,75 @@ export class DungeonScene extends Phaser.Scene {
     enemy.play(animKey);
   }
 
+  resetRoamingEnemy(enemy, teleportToSpawn = true) {
+    if (!enemy?.active) {
+      return;
+    }
+
+    this.tweens.killTweensOf(enemy);
+    enemy.chasing = false;
+    enemy.pathCells = [];
+    enemy.pathTargetKey = null;
+    enemy.nextPathRefreshAt = 0;
+    enemy.bursting = false;
+    enemy.burstUntil = 0;
+    enemy.nextBurstAt = 0;
+    enemy.setVelocity(0, 0);
+    enemy.clearTint();
+    enemy.setAlpha(1);
+    enemy.setScale(enemy.homeScale ?? enemy.enemyStats?.scale ?? 1);
+
+    if (teleportToSpawn && enemy.spawnCell) {
+      const spawn = this.cellToWorld(enemy.spawnCell.x, enemy.spawnCell.y);
+      enemy.setPosition(spawn.x, spawn.y);
+    }
+
+    if (enemy.body) {
+      enemy.body.reset(enemy.x, enemy.y);
+      enemy.body.setSize(enemy.width * 0.45, enemy.height * 0.55);
+      enemy.body.setVelocity(0, 0);
+    }
+
+    enemy.setDepth(enemy.y + ENEMY_DEPTH_OFFSET);
+    this.playEnemyIdle(enemy);
+  }
+
+  resetRoamingEnemies(teleportToSpawn = true) {
+    if (!this.enemies) {
+      return;
+    }
+
+    this.enemies.getChildren().forEach((enemy) => {
+      this.resetRoamingEnemy(enemy, teleportToSpawn);
+    });
+  }
+
+  saveEnemyReturnPositions(engagedEnemyId = null) {
+    if (!this.enemies) {
+      return;
+    }
+
+    const enemyPositions = {};
+
+    for (const enemy of this.enemies.getChildren()) {
+      if (!enemy.active || !enemy.enemyId) {
+        continue;
+      }
+
+      const shouldReturnToSpawn = enemy.enemyId === engagedEnemyId;
+      const position = shouldReturnToSpawn && enemy.spawnCell
+        ? this.cellToWorld(enemy.spawnCell.x, enemy.spawnCell.y)
+        : { x: enemy.x, y: enemy.y };
+
+      enemyPositions[enemy.enemyId] = {
+        x: position.x,
+        y: position.y,
+      };
+    }
+
+    this.layoutState.enemyPositions = enemyPositions;
+  }
+
   computeLayoutSeed(seedText) {
     const text = String(seedText ?? 'dungeon');
     let hash = 2166136261;
@@ -1111,6 +1301,10 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   update() {
+    if (Phaser.Input.Keyboard.JustDown(this.debugHudKey)) {
+      this.setDungeonDebugHudVisible(!this.dungeonDebugHudVisible);
+    }
+
     const editorHasFocus = this.devModeController?.update() ?? false;
     if (editorHasFocus) {
       if (!this.editorCameraDetached) {
@@ -1139,25 +1333,31 @@ export class DungeonScene extends Phaser.Scene {
       return;
     }
 
+    if (this.updateExitPortalInteraction()) {
+      return;
+    }
+
     this.updateChestInteraction();
 
-    if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
-      this.switchDungeonByOffset(1);
-      return;
-    }
+    if (this.dungeonDebugHudVisible) {
+      if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
+        this.switchDungeonByOffset(1);
+        return;
+      }
 
-    if (Phaser.Input.Keyboard.JustDown(this.prevDungeonKey)) {
-      this.switchDungeonByOffset(-1);
-      return;
-    }
+      if (Phaser.Input.Keyboard.JustDown(this.prevDungeonKey)) {
+        this.switchDungeonByOffset(-1);
+        return;
+      }
 
-    if (Phaser.Input.Keyboard.JustDown(this.nextDungeonKey)) {
-      this.switchDungeonByOffset(1);
-      return;
-    }
+      if (Phaser.Input.Keyboard.JustDown(this.nextDungeonKey)) {
+        this.switchDungeonByOffset(1);
+        return;
+      }
 
-    if (this.handleDungeonNumberInput()) {
-      return;
+      if (this.handleDungeonNumberInput()) {
+        return;
+      }
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.qKey)) {
@@ -1171,7 +1371,7 @@ export class DungeonScene extends Phaser.Scene {
 
   updateChestInteraction() {
     const nearbyChest = this.getNearbyClosedChest();
-    this.chestPrompt?.setVisible(Boolean(nearbyChest));
+    this.chestPrompt?.setVisible(Boolean(nearbyChest) && !this.exitPortalPrompt?.visible);
 
     if (!nearbyChest || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       return;
@@ -1187,6 +1387,58 @@ export class DungeonScene extends Phaser.Scene {
     if (this.chestRewardLabel) {
       this.chestRewardLabel.setText(`Latest chest reward: ${rewardResult.summaryText}`);
     }
+    this.updateEncounterUi();
+  }
+
+  updateExitPortalInteraction() {
+    if (!this.exitPortalCenter) {
+      return false;
+    }
+
+    const distance = Phaser.Math.Distance.Between(
+      this.player.x,
+      this.player.y,
+      this.exitPortalCenter.x,
+      this.exitPortalCenter.y,
+    );
+    const nearPortal = distance <= EXIT_PORTAL_INTERACT_DISTANCE;
+    const exitUnlocked = this.isDungeonExitUnlocked();
+    this.exitPortalPrompt?.setVisible(nearPortal);
+    this.exitPortalPrompt?.setText(exitUnlocked ? 'Press E to exit dungeon' : 'Clear enemies and chests to unlock exit');
+
+    if (!nearPortal || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      return false;
+    }
+
+    if (!exitUnlocked) {
+      this.statusLabel?.setText(this.getExitLockedText());
+      return true;
+    }
+
+    this.returnToOverworld();
+    return true;
+  }
+
+  isDungeonExitUnlocked() {
+    return this.layoutState.encounterCompleted && this.areAllChestsOpened();
+  }
+
+  areAllChestsOpened() {
+    return (this.layoutState.chests ?? []).every((chest) => chest.opened === true);
+  }
+
+  getChestCount() {
+    return (this.layoutState.chests ?? []).length;
+  }
+
+  getOpenedChestCount() {
+    return (this.layoutState.chests ?? []).filter((chest) => chest.opened === true).length;
+  }
+
+  getExitLockedText() {
+    const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
+    const totalEnemies = this.layoutState.enemyCount ?? 0;
+    return `Exit locked: clear enemies ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} and chests ${this.getOpenedChestCount()}/${this.getChestCount()}.`;
   }
 
   getNearbyClosedChest() {
@@ -1247,6 +1499,7 @@ export class DungeonScene extends Phaser.Scene {
 
       if (!enemy.chasing && this.hasLineOfSightToPlayer(enemy)) {
         enemy.chasing = true;
+        enemy.nextBurstAt = this.time.now + 420 + this.getEnemyBurstJitter(enemy);
         this.tweens.add({
           targets: enemy,
           scaleX: enemy.scaleX * 1.12,
@@ -1257,12 +1510,188 @@ export class DungeonScene extends Phaser.Scene {
       }
 
       if (enemy.chasing) {
-        this.physics.moveToObject(enemy, this.player, ENEMY_CHASE_SPEED);
+        this.updateEnemyPathChase(enemy);
         enemy.setDepth(enemy.y + ENEMY_DEPTH_OFFSET);
       } else {
         enemy.setVelocity(0, 0);
       }
     }
+  }
+
+  updateEnemyPathChase(enemy) {
+    const enemyCell = this.worldToCell(enemy.x, enemy.y);
+    const playerCell = this.worldToCell(this.player.x, this.player.y);
+    const playerKey = `${playerCell.x},${playerCell.y}`;
+    const now = this.time.now;
+
+    if (
+      !Array.isArray(enemy.pathCells) ||
+      enemy.pathCells.length === 0 ||
+      enemy.pathTargetKey !== playerKey ||
+      now >= (enemy.nextPathRefreshAt ?? 0)
+    ) {
+      enemy.pathCells = this.findPathCells(enemyCell, playerCell);
+      enemy.pathTargetKey = playerKey;
+      enemy.nextPathRefreshAt = now + ENEMY_PATH_RECALC_MS;
+    }
+
+    if (!enemy.pathCells || enemy.pathCells.length === 0) {
+      enemy.setVelocity(0, 0);
+      return;
+    }
+
+    let nextCell = enemy.pathCells[0];
+    let nextCenter = this.cellToWorld(nextCell.x, nextCell.y);
+    const closeToNext = Phaser.Math.Distance.Between(enemy.x, enemy.y, nextCenter.x, nextCenter.y) <= 8;
+    if (closeToNext && enemy.pathCells.length > 1) {
+      enemy.pathCells.shift();
+      nextCell = enemy.pathCells[0];
+      nextCenter = this.cellToWorld(nextCell.x, nextCell.y);
+    }
+
+    const speed = this.updateEnemyChaseBurst(enemy, nextCenter);
+    this.physics.moveTo(enemy, nextCenter.x, nextCenter.y, speed);
+  }
+
+  getEnemyChaseProfile(enemy) {
+    return ENEMY_CHASE_PROFILES[enemy.enemyStats?.spriteKey] ?? {
+      speed: ENEMY_CHASE_SPEED,
+      burstSpeed: 0,
+      burstDuration: 0,
+      burstCooldown: 0,
+      burstJitter: 0,
+      burstKind: null,
+    };
+  }
+
+  getEnemyBurstJitter(enemy) {
+    const profile = this.getEnemyChaseProfile(enemy);
+    if (!profile.burstJitter) {
+      return 0;
+    }
+
+    const seed = Math.floor((this.time.now + enemy.x * 7 + enemy.y * 11) % profile.burstJitter);
+    return seed;
+  }
+
+  updateEnemyChaseBurst(enemy, nextCenter) {
+    const profile = this.getEnemyChaseProfile(enemy);
+    const now = this.time.now;
+    const baseSpeed = profile.speed ?? ENEMY_CHASE_SPEED;
+
+    if (enemy.bursting && now < (enemy.burstUntil ?? 0)) {
+      return profile.burstSpeed || baseSpeed;
+    }
+
+    if (enemy.bursting) {
+      enemy.bursting = false;
+      enemy.clearTint();
+      enemy.setAlpha(1);
+      enemy.setScale(enemy.homeScale ?? enemy.enemyStats?.scale ?? 1);
+    }
+
+    if (!profile.burstKind || now < (enemy.nextBurstAt ?? 0)) {
+      return baseSpeed;
+    }
+
+    const distanceToPlayer = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+    const distanceToPathTarget = Phaser.Math.Distance.Between(enemy.x, enemy.y, nextCenter.x, nextCenter.y);
+    if (distanceToPlayer < ENEMY_BURST_MIN_DISTANCE || distanceToPathTarget < 12) {
+      enemy.nextBurstAt = now + 240;
+      return baseSpeed;
+    }
+
+    enemy.bursting = true;
+    enemy.burstUntil = now + profile.burstDuration;
+    enemy.nextBurstAt = enemy.burstUntil + profile.burstCooldown + this.getEnemyBurstJitter(enemy);
+    this.playEnemyBurstWindup(enemy, profile);
+    return profile.burstSpeed || baseSpeed;
+  }
+
+  playEnemyBurstWindup(enemy, profile) {
+    this.tweens.killTweensOf(enemy);
+
+    if (profile.burstKind === 'leap') {
+      enemy.setTint(0xc9ff92);
+      this.tweens.add({
+        targets: enemy,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * 1.26,
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * 0.78,
+        duration: 80,
+        yoyo: true,
+        ease: 'Sine.easeOut',
+      });
+      return;
+    }
+
+    if (profile.burstKind === 'dash') {
+      enemy.setTint(0xff8a8a);
+      this.tweens.add({
+        targets: enemy,
+        alpha: 0.58,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * 1.18,
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * 1.02,
+        duration: 70,
+        yoyo: true,
+        repeat: 1,
+        ease: 'Quad.easeInOut',
+      });
+    }
+  }
+
+  findPathCells(startCell, targetCell) {
+    const startKey = `${startCell.x},${startCell.y}`;
+    const targetKey = `${targetCell.x},${targetCell.y}`;
+
+    if (startKey === targetKey) {
+      return [targetCell];
+    }
+
+    if (!this.floorCellSet.has(startKey) || !this.floorCellSet.has(targetKey)) {
+      return [];
+    }
+
+    const queue = [startCell];
+    const cameFrom = new Map([[startKey, null]]);
+    const neighbors = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ];
+
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
+      const currentKey = `${current.x},${current.y}`;
+      if (currentKey === targetKey) {
+        break;
+      }
+
+      for (const offset of neighbors) {
+        const next = { x: current.x + offset.x, y: current.y + offset.y };
+        const nextKey = `${next.x},${next.y}`;
+        if (cameFrom.has(nextKey) || !this.floorCellSet.has(nextKey)) {
+          continue;
+        }
+
+        cameFrom.set(nextKey, currentKey);
+        queue.push(next);
+      }
+    }
+
+    if (!cameFrom.has(targetKey)) {
+      return [];
+    }
+
+    const path = [];
+    let cursor = targetKey;
+    while (cursor && cursor !== startKey) {
+      const [x, y] = cursor.split(',').map(Number);
+      path.push({ x, y });
+      cursor = cameFrom.get(cursor);
+    }
+
+    return path.reverse();
   }
 
   hasLineOfSightToPlayer(enemy) {
@@ -1303,11 +1732,12 @@ export class DungeonScene extends Phaser.Scene {
 
     this.combatStarting = true;
     this.player.setVelocity(0, 0);
+    this.saveEnemyReturnPositions(enemy?.enemyId ?? null);
     if (this.enemies) {
       this.enemies.getChildren().forEach((enemySprite) => enemySprite.setVelocity(0, 0));
     }
 
-    const enemyStats = { ...(enemy?.enemyStats ?? ENEMY_TYPES[0]) };
+    const enemyStats = this.applyDungeonCombatTuning(enemy?.enemyStats ?? ENEMY_TYPES[0]);
     const playerStats = { ...getPlaytestCombatantState() };
 
     this.scene.start('combat', {
@@ -1323,6 +1753,23 @@ export class DungeonScene extends Phaser.Scene {
         defeatedEnemyId: enemy?.enemyId ?? null,
       },
     });
+  }
+
+  applyDungeonCombatTuning(enemyStats) {
+    const level = getPlaytestLevel();
+    const levelOffset = Math.max(0, level - 1);
+    const depthIndex = Phaser.Math.Clamp(this.layoutState.poolIndex ?? 0, 0, DUNGEON_DEPTH_TUNING.length - 1);
+    const depthTuning = DUNGEON_DEPTH_TUNING[depthIndex] ?? DUNGEON_DEPTH_TUNING[0];
+    const hpScale = 0.62 + (levelOffset * 0.12) + depthTuning.hpBonus;
+    const attackScale = 0.5 + (levelOffset * 0.08) + depthTuning.attackBonus;
+
+    return {
+      ...enemyStats,
+      maxHp: Math.max(10, Math.round(enemyStats.maxHp * hpScale)),
+      attack: Math.max(2, Math.round(enemyStats.attack * attackScale)),
+      level,
+      tier: depthIndex + 1,
+    };
   }
 
   regenerateDungeon() {
@@ -1439,6 +1886,12 @@ export class DungeonScene extends Phaser.Scene {
       spawnCell: { ...layoutState.spawnCell },
       tileTheme: layoutState.tileTheme,
       defeatedEnemyIds: [...(layoutState.defeatedEnemyIds ?? [])],
+      enemyPositions: Object.fromEntries(
+        Object.entries(layoutState.enemyPositions ?? {}).map(([enemyId, position]) => [
+          enemyId,
+          { ...position },
+        ]),
+      ),
       enemyCount: layoutState.enemyCount ?? 0,
       encounterCompleted: layoutState.encounterCompleted ?? false,
       clearRecorded: layoutState.clearRecorded ?? false,
@@ -1455,6 +1908,11 @@ export class DungeonScene extends Phaser.Scene {
 
   returnToOverworld() {
     if (this.returning) {
+      return;
+    }
+
+    if (!this.isDungeonExitUnlocked()) {
+      this.statusLabel?.setText(this.getExitLockedText());
       return;
     }
 

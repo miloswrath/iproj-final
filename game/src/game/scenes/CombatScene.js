@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   applyCombatItemEffect,
   getCombatUsableInventoryItems,
+  resetPlaytestPlayerHp,
   setPlaytestPlayerHp,
 } from '../playtestProgression';
 
@@ -153,7 +154,8 @@ export class CombatScene extends Phaser.Scene {
       maxHp: data?.playerStats?.maxHp ?? 30,
       hp: data?.playerStats?.hp ?? data?.playerStats?.maxHp ?? 30,
       attack: data?.playerStats?.attack ?? 8,
-      defendReduction: data?.playerStats?.defendReduction ?? 4,
+      defendReduction: data?.playerStats?.defendReduction ?? 6,
+      level: data?.playerStats?.level ?? 1,
     };
 
     this.enemyStats = {
@@ -162,16 +164,17 @@ export class CombatScene extends Phaser.Scene {
       hp: data?.enemyStats?.maxHp ?? 24,
       attack: data?.enemyStats?.attack ?? 6,
       spriteKey: data?.enemyStats?.spriteKey ?? 'slime-idle',
+      level: data?.enemyStats?.level ?? 1,
     };
 
     this.playerTurn = true;
     this.playerDefending = false;
     this.result = null;
-    this.commandOrder = ['attack', 'item', 'defend', 'flee'];
+    this.commandOrder = ['attack', 'heavy', 'item', 'defend'];
     this.commandIndex = 0;
     this.itemIndex = 0;
     this.menuState = 'commands';
-    this.fleeAllowed = false;
+    this.heavyStrikeCooldown = 0;
     this.itemButtons = [];
     this.actionLocked = false;
     this.actionLog = ['A hostile presence closes in.'];
@@ -360,7 +363,7 @@ export class CombatScene extends Phaser.Scene {
       color: '#c6dcff',
     });
 
-    this.playerNameText = this.add.text(this.ui.playerCardLeft + 18, statusTop + 18, 'Witch Kitty', {
+    this.playerNameText = this.add.text(this.ui.playerCardLeft + 18, statusTop + 18, `Witch Kitty Lv.${this.playerStats.level}`, {
       fontFamily: 'Georgia',
       fontSize: `${nameSize}px`,
       color: '#f6fbff',
@@ -394,10 +397,10 @@ export class CombatScene extends Phaser.Scene {
     });
 
     this.commandButtons = [
-      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop, '1) Attack', 'attack'),
-      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop, '2) Item', 'item'),
-      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop + buttonHeight + 12, '3) Defend', 'defend'),
-      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop + buttonHeight + 12, '4) Flee', 'flee'),
+      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop, '1) Strike', 'attack'),
+      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop, '2) Heavy', 'heavy'),
+      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop + buttonHeight + 12, '3) Item', 'item'),
+      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop + buttonHeight + 12, '4) Defend', 'defend'),
     ];
 
     this.itemPanelTitle = this.add.text(this.ui.itemLeft, this.ui.itemTop, 'Battle Pack', {
@@ -445,7 +448,7 @@ export class CombatScene extends Phaser.Scene {
       .on('pointerdown', () => this.resolveReturn())
       .setVisible(false);
 
-    this.helpText = this.add.text(panelLeft + 34, this.ui.helpTop, 'Use keys 1-4. Arrow keys + Enter drive battle items. Esc closes the item list.', {
+    this.helpText = this.add.text(panelLeft + 34, this.ui.helpTop, '1 Strike | 2 Heavy | 3 Item | 4 Defend. Arrow keys + Enter drive battle items. Esc closes the item list.', {
       fontFamily: 'monospace',
       fontSize: `${helpSize}px`,
       color: '#c8ccdc',
@@ -732,11 +735,11 @@ export class CombatScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keyOne)) {
       this.handleAction('attack');
     } else if (Phaser.Input.Keyboard.JustDown(this.keyTwo)) {
-      this.handleAction('item');
+      this.handleAction('heavy');
     } else if (Phaser.Input.Keyboard.JustDown(this.keyThree)) {
-      this.handleAction('defend');
+      this.handleAction('item');
     } else if (Phaser.Input.Keyboard.JustDown(this.keyFour)) {
-      this.handleAction('flee');
+      this.handleAction('defend');
     }
   }
 
@@ -752,8 +755,8 @@ export class CombatScene extends Phaser.Scene {
       return;
     }
 
-    if (action === 'flee') {
-      this.refreshHud(this.fleeAllowed ? 'Flee not implemented yet.' : 'Flee is disabled in this encounter.');
+    if (action === 'heavy' && this.heavyStrikeCooldown > 0) {
+      this.refreshHud(`Heavy Strike recharges in ${this.heavyStrikeCooldown} turn.`);
       return;
     }
 
@@ -762,8 +765,8 @@ export class CombatScene extends Phaser.Scene {
     this.playerDefending = action === 'defend';
     this.actionLocked = true;
 
-    if (action === 'attack') {
-      this.resolvePlayerAttack();
+    if (action === 'attack' || action === 'heavy') {
+      this.resolvePlayerAttack(action);
 
       return;
     }
@@ -927,6 +930,7 @@ export class CombatScene extends Phaser.Scene {
       return;
     }
 
+    resetPlaytestPlayerHp();
     this.scene.start('overworld', {
       spawnX: this.returnContext.returnX ?? 170,
       spawnY: this.returnContext.returnY ?? 170,
@@ -936,7 +940,7 @@ export class CombatScene extends Phaser.Scene {
 
   refreshHud(logMessage) {
     this.turnText.setText(this.result ? `Result: ${this.result.toUpperCase()}` : this.playerTurn ? 'Turn: Player' : 'Turn: Enemy');
-    this.enemyNameText.setText(this.enemyStats.name);
+    this.enemyNameText.setText(`${this.enemyStats.name} Lv.${this.enemyStats.level}`);
     this.playerHpText.setText(`HP ${this.playerStats.hp}/${this.playerStats.maxHp}`);
     this.enemyHpText.setText(`HP ${this.enemyStats.hp}/${this.enemyStats.maxHp}`);
     this.logText.setText(this.actionLog.slice(-3).join('\n'));
@@ -953,10 +957,14 @@ export class CombatScene extends Phaser.Scene {
     this.commandButtons.forEach((button, index) => {
       const action = this.commandOrder[index];
       const selected = this.menuState === 'commands' && index === this.commandIndex;
-      const disabled = action === 'flee' && !this.fleeAllowed;
+      const disabled = action === 'heavy' && this.heavyStrikeCooldown > 0;
       button
         .setAlpha(disabled ? 0.45 : 1)
         .setBackgroundColor(selected ? '#567cc1' : '#24314d');
+
+      if (action === 'heavy') {
+        button.setText(this.heavyStrikeCooldown > 0 ? `2) Heavy ${this.heavyStrikeCooldown}` : '2) Heavy');
+      }
     });
 
     const items = this.getCombatItems();
@@ -1084,16 +1092,22 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
-  resolvePlayerAttack() {
-    const outcome = this.rollAttack(this.playerStats.attack, {
-      accuracy: 0.91,
-      critChance: 0.17,
-      variance: 0.26,
+  resolvePlayerAttack(action = 'attack') {
+    const isHeavy = action === 'heavy';
+    const baseAttack = isHeavy ? Math.round(this.playerStats.attack * 1.65) : this.playerStats.attack;
+    const outcome = this.rollAttack(baseAttack, {
+      accuracy: isHeavy ? 0.82 : 0.93,
+      critChance: isHeavy ? 0.11 : 0.16,
+      variance: isHeavy ? 0.18 : 0.22,
     });
+
+    if (isHeavy) {
+      this.heavyStrikeCooldown = 2;
+    }
 
     this.runAttackSequence({
       actor: 'player',
-      style: 'kitty',
+      style: isHeavy ? 'heavy-kitty' : 'kitty',
       outcome,
       onHit: () => {
         this.enemyStats.hp = Math.max(0, this.enemyStats.hp - outcome.damage);
@@ -1112,8 +1126,10 @@ export class CombatScene extends Phaser.Scene {
     });
 
     const message = outcome.hit
-      ? outcome.critical ? `Critical hit for ${outcome.damage}.` : `You strike for ${outcome.damage}.`
-      : 'Your attack misses.';
+      ? isHeavy
+        ? outcome.critical ? `Heavy critical for ${outcome.damage}.` : `Heavy Strike hits for ${outcome.damage}.`
+        : outcome.critical ? `Critical hit for ${outcome.damage}.` : `You strike for ${outcome.damage}.`
+      : isHeavy ? 'Heavy Strike misses.' : 'Your attack misses.';
     this.appendLog(message);
     this.refreshHud(message);
   }
@@ -1127,7 +1143,8 @@ export class CombatScene extends Phaser.Scene {
 
     let damage = outcome.damage;
     if (this.playerDefending && outcome.hit) {
-      damage = Math.max(1, damage - this.playerStats.defendReduction);
+      const percentageReduction = Math.ceil(damage * 0.7);
+      damage = Math.max(1, damage - Math.max(this.playerStats.defendReduction, percentageReduction));
     }
 
     if (outcome.hit) {
@@ -1161,6 +1178,7 @@ export class CombatScene extends Phaser.Scene {
         }
 
         this.playerDefending = false;
+        this.heavyStrikeCooldown = Math.max(0, this.heavyStrikeCooldown - 1);
         this.playerTurn = true;
         this.actionLocked = false;
         this.refreshHud(`${logMessage} Your turn.`);
@@ -1172,12 +1190,21 @@ export class CombatScene extends Phaser.Scene {
     const attacker = actor === 'player' ? this.playerSprite : this.enemySprite;
     const attackerIdle = actor === 'player' ? 'combat-player-idle' : `${this.enemyStats.spriteKey}-loop`;
     const isPlayer = actor === 'player';
+    const isHeavy = isPlayer && style === 'heavy-kitty';
     const startX = isPlayer ? this.ui.playerX : this.ui.enemyX;
     const startY = isPlayer ? this.ui.playerY : this.ui.enemyY;
     const targetX = isPlayer ? this.ui.enemyX : this.ui.playerX;
     const targetY = isPlayer ? this.ui.enemyY : this.ui.playerY;
-    const dashX = startX + (isPlayer ? 56 : -54);
-    const angle = isPlayer ? 8 : -10;
+    const dashX = startX + (isPlayer ? (isHeavy ? 86 : 56) : -54);
+    const dashY = startY - (isHeavy ? 30 : 14);
+    const angle = isPlayer ? (isHeavy ? 18 : 8) : -10;
+    const duration = isHeavy ? 210 : 140;
+    const hold = isHeavy ? 90 : 45;
+
+    if (isHeavy) {
+      this.runHeavyAttackSequence({ attacker, attackerIdle, outcome, onHit, onComplete });
+      return;
+    }
 
     if (isPlayer) {
       this.playerIdleFloat?.pause();
@@ -1185,14 +1212,19 @@ export class CombatScene extends Phaser.Scene {
     }
 
     attacker.setAngle(angle);
+    if (isHeavy) {
+      attacker.setTint(0xfff0a6);
+    }
     this.tweens.add({
       targets: attacker,
       x: dashX,
-      y: startY - 14,
+      y: dashY,
+      scaleX: isHeavy ? PLAYER_VISUAL_CONFIG.scale * 1.13 : attacker.scaleX,
+      scaleY: isHeavy ? PLAYER_VISUAL_CONFIG.scale * 1.13 : attacker.scaleY,
       ease: 'Cubic.easeOut',
-      duration: 140,
+      duration,
       yoyo: true,
-      hold: 45,
+      hold,
       onYoyo: () => {
         if (outcome.hit) {
           onHit?.();
@@ -1202,6 +1234,10 @@ export class CombatScene extends Phaser.Scene {
       onComplete: () => {
         attacker.setAngle(0);
         attacker.setPosition(startX, startY);
+        if (isHeavy) {
+          attacker.clearTint();
+          attacker.setScale(PLAYER_VISUAL_CONFIG.scale);
+        }
         if (isPlayer) {
           attacker.play(attackerIdle);
           this.playerIdleFloat?.resume();
@@ -1211,7 +1247,121 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
+  runHeavyAttackSequence({ attacker, attackerIdle, outcome, onHit = null, onComplete = null }) {
+    const startX = this.ui.playerX;
+    const startY = this.ui.playerY;
+    const windupX = startX - 26;
+    const windupY = startY + 10;
+    const slamX = this.ui.enemyX - 58;
+    const slamY = this.ui.enemyY - 42;
+    const baseScale = PLAYER_VISUAL_CONFIG.scale;
+    const chargeColor = outcome.critical ? 0xfff3a0 : 0xffc857;
+    const chargeRing = this.add.circle(startX + 8, startY + 10, 26, chargeColor, 0.14)
+      .setStrokeStyle(4, chargeColor, 0.72)
+      .setDepth(attacker.depth - 1);
+    const groundMark = this.add.ellipse(startX + 4, startY + 42, 82, 18, 0x4a2a12, 0.22)
+      .setDepth(attacker.depth - 2);
+
+    this.playerIdleFloat?.pause();
+    attacker.play('combat-player-attack');
+    attacker.setTint(0xffef9a);
+
+    this.tweens.add({
+      targets: chargeRing,
+      scaleX: 1.8,
+      scaleY: 1.8,
+      alpha: 0,
+      duration: 250,
+      ease: 'Cubic.easeOut',
+      onComplete: () => chargeRing.destroy(),
+    });
+
+    this.tweens.add({
+      targets: groundMark,
+      scaleX: 0.68,
+      alpha: 0.38,
+      duration: 150,
+      yoyo: true,
+      onComplete: () => groundMark.destroy(),
+    });
+
+    this.tweens.add({
+      targets: attacker,
+      x: windupX,
+      y: windupY,
+      angle: -18,
+      scaleX: baseScale * 0.86,
+      scaleY: baseScale * 1.22,
+      duration: 170,
+      ease: 'Back.easeIn',
+      onComplete: () => {
+        this.spawnHeavyAfterimage(attacker, 0.28);
+        this.time.delayedCall(70, () => this.spawnHeavyAfterimage(attacker, 0.18));
+        this.tweens.add({
+          targets: attacker,
+          x: slamX,
+          y: slamY,
+          angle: 32,
+          scaleX: baseScale * 1.32,
+          scaleY: baseScale * 1.08,
+          duration: 190,
+          ease: 'Quad.easeIn',
+          onComplete: () => {
+            if (outcome.hit) {
+              onHit?.();
+              this.spawnAttackEffect('heavy-kitty', true, this.ui.enemyX, this.ui.enemyY, outcome.critical);
+              this.cameras.main.shake(130, outcome.critical ? 0.007 : 0.004);
+            }
+
+            this.tweens.add({
+              targets: attacker,
+              x: startX,
+              y: startY,
+              angle: 0,
+              scaleX: baseScale,
+              scaleY: baseScale,
+              duration: 230,
+              ease: 'Cubic.easeOut',
+              onComplete: () => {
+                attacker.clearTint();
+                attacker.setPosition(startX, startY);
+                attacker.setAngle(0);
+                attacker.setScale(baseScale);
+                attacker.play(attackerIdle);
+                this.playerIdleFloat?.resume();
+                this.time.delayedCall(250, () => onComplete?.());
+              },
+            });
+          },
+        });
+      },
+    });
+  }
+
+  spawnHeavyAfterimage(source, alpha) {
+    const ghost = this.add.sprite(source.x, source.y, source.texture.key, source.frame.name)
+      .setScale(source.scaleX, source.scaleY)
+      .setAngle(source.angle)
+      .setTint(0xffd36b)
+      .setAlpha(alpha)
+      .setDepth(source.depth - 1);
+
+    this.tweens.add({
+      targets: ghost,
+      alpha: 0,
+      x: ghost.x - 18,
+      duration: 180,
+      ease: 'Quad.easeOut',
+      onComplete: () => ghost.destroy(),
+    });
+  }
+
   spawnAttackEffect(style, leftToRight, targetX, targetY, critical = false) {
+    if (style === 'heavy-kitty') {
+      this.spawnHeavyStrike(targetX, targetY, critical, leftToRight);
+      return;
+    }
+
     if (style === 'slime') {
       this.spawnSlimeBurst(targetX, targetY, critical);
       return;
@@ -1235,6 +1385,51 @@ export class CombatScene extends Phaser.Scene {
       critical,
       leftToRight,
     );
+  }
+
+  spawnHeavyStrike(x, y, critical = false, leftToRight = true) {
+    const color = critical ? 0xfff3a0 : 0xffc857;
+    const direction = leftToRight ? 1 : -1;
+    const impact = this.add.circle(x, y + 4, critical ? 54 : 44, color, 0.28)
+      .setStrokeStyle(7, 0xffffff, 0.86);
+    const shockwave = this.add.ellipse(x, y + 34, critical ? 164 : 132, critical ? 42 : 34, color, 0.24)
+      .setStrokeStyle(5, 0xfff7cf, 0.78);
+    const slam = this.add.rectangle(x - direction * 24, y - 20, 22, 122, color, 0.9)
+      .setAngle(direction * 42);
+    const crossSlam = this.add.rectangle(x + direction * 8, y - 6, 12, 94, 0xffffff, 0.72)
+      .setAngle(direction * 58);
+    const sparkA = this.add.star(x + direction * 34, y - 34, 5, 8, critical ? 31 : 24, 0xffffff, 0.94);
+    const sparkB = this.add.star(x - direction * 24, y + 4, 5, 6, critical ? 23 : 17, color, 0.84);
+    const debris = [
+      this.add.rectangle(x - direction * 52, y + 28, 10, 5, 0x6d421d, 0.86).setAngle(-18),
+      this.add.rectangle(x + direction * 46, y + 33, 12, 6, 0x6d421d, 0.76).setAngle(24),
+      this.add.rectangle(x + direction * 10, y + 42, 8, 4, 0x3d2616, 0.68).setAngle(8),
+    ];
+
+    this.tweens.add({
+      targets: [impact, shockwave],
+      alpha: 0,
+      scaleX: 2,
+      scaleY: 1.55,
+      duration: 300,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        impact.destroy();
+        shockwave.destroy();
+      },
+    });
+
+    this.tweens.add({
+      targets: [slam, crossSlam, sparkA, sparkB, ...debris],
+      alpha: 0,
+      y: '-=24',
+      x: `+=${direction * 12}`,
+      scaleX: 1.32,
+      scaleY: 1.32,
+      duration: 280,
+      ease: 'Quad.easeOut',
+      onComplete: () => [slam, crossSlam, sparkA, sparkB, ...debris].forEach((node) => node.destroy()),
+    });
   }
 
   spawnSlimeBurst(x, y, critical = false) {

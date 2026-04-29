@@ -15,6 +15,8 @@ import overworldGrass1Url from '../../../assets/objects/overworld/5 Grass/1.png'
 import overworldGrass6Url from '../../../assets/objects/overworld/5 Grass/6.png';
 import overworldStone3Url from '../../../assets/objects/overworld/2 Stone/3.png';
 import overworldBox2Url from '../../../assets/objects/overworld/4 Box/2.png';
+import overworldTowerPad1Url from '../../../assets/objects/overworld/PlaceForTower1.png';
+import overworldTowerPad2Url from '../../../assets/objects/overworld/PlaceForTower2.png';
 import overworldTent1Url from '../../../assets/objects/overworld/6 Tent/1.png';
 import overworldTent2Url from '../../../assets/objects/overworld/6 Tent/2.png';
 import overworldTent3Url from '../../../assets/objects/overworld/6 Tent/3.png';
@@ -47,6 +49,7 @@ import undeadObjectsUrl from '../../../assets/_source/craftpix-net-695666-free-u
 import inventoryLayoutUrl from '../../../assets/ui/inventory/inventory-layout.png';
 import inventoryFrameTilesUrl from '../../../assets/ui/inventory/inventory-frame-tiles.png';
 import inventoryIconsUrl from '../../../assets/ui/inventory/inventory-icons.png';
+import fieldTonicIconUrl from '../../../assets/ui/inventory/field-tonic-icon.png';
 import npcGirl1IdleUrl from '../../../assets/characters/girl-1/idle.png';
 import npcGirl1WalkUrl from '../../../assets/characters/girl-1/walk.png';
 import npcGirl1DialogueUrl from '../../../assets/characters/girl-1/dialogue.png';
@@ -69,6 +72,8 @@ export const assetPaths = {
   overworldGrass6Url,
   overworldStone3Url,
   overworldBox2Url,
+  overworldTowerPad1Url,
+  overworldTowerPad2Url,
   overworldTent1Url,
   overworldTent2Url,
   overworldTent3Url,
@@ -101,6 +106,7 @@ export const assetPaths = {
   inventoryLayoutUrl,
   inventoryFrameTilesUrl,
   inventoryIconsUrl,
+  fieldTonicIconUrl,
   npcGirl1IdleUrl,
   npcGirl1WalkUrl,
   npcGirl1DialogueUrl,
