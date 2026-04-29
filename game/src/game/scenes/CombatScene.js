@@ -154,7 +154,7 @@ export class CombatScene extends Phaser.Scene {
       maxHp: data?.playerStats?.maxHp ?? 30,
       hp: data?.playerStats?.hp ?? data?.playerStats?.maxHp ?? 30,
       attack: data?.playerStats?.attack ?? 8,
-      defendReduction: data?.playerStats?.defendReduction ?? 4,
+      defendReduction: data?.playerStats?.defendReduction ?? 6,
     };
 
     this.enemyStats = {
@@ -168,11 +168,11 @@ export class CombatScene extends Phaser.Scene {
     this.playerTurn = true;
     this.playerDefending = false;
     this.result = null;
-    this.commandOrder = ['attack', 'item', 'defend', 'flee'];
+    this.commandOrder = ['attack', 'heavy', 'item', 'defend'];
     this.commandIndex = 0;
     this.itemIndex = 0;
     this.menuState = 'commands';
-    this.fleeAllowed = false;
+    this.heavyStrikeCooldown = 0;
     this.itemButtons = [];
     this.actionLocked = false;
     this.actionLog = ['A hostile presence closes in.'];
@@ -395,10 +395,10 @@ export class CombatScene extends Phaser.Scene {
     });
 
     this.commandButtons = [
-      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop, '1) Attack', 'attack'),
-      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop, '2) Item', 'item'),
-      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop + buttonHeight + 12, '3) Defend', 'defend'),
-      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop + buttonHeight + 12, '4) Flee', 'flee'),
+      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop, '1) Strike', 'attack'),
+      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop, '2) Heavy', 'heavy'),
+      this.createCommandButton(this.ui.commandLeft, this.ui.commandTop + buttonHeight + 12, '3) Item', 'item'),
+      this.createCommandButton(this.ui.commandLeft + buttonWidth + buttonGap, this.ui.commandTop + buttonHeight + 12, '4) Defend', 'defend'),
     ];
 
     this.itemPanelTitle = this.add.text(this.ui.itemLeft, this.ui.itemTop, 'Battle Pack', {
@@ -446,7 +446,7 @@ export class CombatScene extends Phaser.Scene {
       .on('pointerdown', () => this.resolveReturn())
       .setVisible(false);
 
-    this.helpText = this.add.text(panelLeft + 34, this.ui.helpTop, 'Use keys 1-4. Arrow keys + Enter drive battle items. Esc closes the item list.', {
+    this.helpText = this.add.text(panelLeft + 34, this.ui.helpTop, '1 Strike | 2 Heavy | 3 Item | 4 Defend. Arrow keys + Enter drive battle items. Esc closes the item list.', {
       fontFamily: 'monospace',
       fontSize: `${helpSize}px`,
       color: '#c8ccdc',
@@ -733,11 +733,11 @@ export class CombatScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keyOne)) {
       this.handleAction('attack');
     } else if (Phaser.Input.Keyboard.JustDown(this.keyTwo)) {
-      this.handleAction('item');
+      this.handleAction('heavy');
     } else if (Phaser.Input.Keyboard.JustDown(this.keyThree)) {
-      this.handleAction('defend');
+      this.handleAction('item');
     } else if (Phaser.Input.Keyboard.JustDown(this.keyFour)) {
-      this.handleAction('flee');
+      this.handleAction('defend');
     }
   }
 
@@ -753,8 +753,8 @@ export class CombatScene extends Phaser.Scene {
       return;
     }
 
-    if (action === 'flee') {
-      this.refreshHud(this.fleeAllowed ? 'Flee not implemented yet.' : 'Flee is disabled in this encounter.');
+    if (action === 'heavy' && this.heavyStrikeCooldown > 0) {
+      this.refreshHud(`Heavy Strike recharges in ${this.heavyStrikeCooldown} turn.`);
       return;
     }
 
@@ -763,8 +763,8 @@ export class CombatScene extends Phaser.Scene {
     this.playerDefending = action === 'defend';
     this.actionLocked = true;
 
-    if (action === 'attack') {
-      this.resolvePlayerAttack();
+    if (action === 'attack' || action === 'heavy') {
+      this.resolvePlayerAttack(action);
 
       return;
     }
@@ -955,10 +955,14 @@ export class CombatScene extends Phaser.Scene {
     this.commandButtons.forEach((button, index) => {
       const action = this.commandOrder[index];
       const selected = this.menuState === 'commands' && index === this.commandIndex;
-      const disabled = action === 'flee' && !this.fleeAllowed;
+      const disabled = action === 'heavy' && this.heavyStrikeCooldown > 0;
       button
         .setAlpha(disabled ? 0.45 : 1)
         .setBackgroundColor(selected ? '#567cc1' : '#24314d');
+
+      if (action === 'heavy') {
+        button.setText(this.heavyStrikeCooldown > 0 ? `2) Heavy ${this.heavyStrikeCooldown}` : '2) Heavy');
+      }
     });
 
     const items = this.getCombatItems();
@@ -1086,12 +1090,18 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
-  resolvePlayerAttack() {
-    const outcome = this.rollAttack(this.playerStats.attack, {
-      accuracy: 0.91,
-      critChance: 0.17,
-      variance: 0.26,
+  resolvePlayerAttack(action = 'attack') {
+    const isHeavy = action === 'heavy';
+    const baseAttack = isHeavy ? Math.round(this.playerStats.attack * 1.65) : this.playerStats.attack;
+    const outcome = this.rollAttack(baseAttack, {
+      accuracy: isHeavy ? 0.82 : 0.93,
+      critChance: isHeavy ? 0.11 : 0.16,
+      variance: isHeavy ? 0.18 : 0.22,
     });
+
+    if (isHeavy) {
+      this.heavyStrikeCooldown = 2;
+    }
 
     this.runAttackSequence({
       actor: 'player',
@@ -1114,8 +1124,10 @@ export class CombatScene extends Phaser.Scene {
     });
 
     const message = outcome.hit
-      ? outcome.critical ? `Critical hit for ${outcome.damage}.` : `You strike for ${outcome.damage}.`
-      : 'Your attack misses.';
+      ? isHeavy
+        ? outcome.critical ? `Heavy critical for ${outcome.damage}.` : `Heavy Strike hits for ${outcome.damage}.`
+        : outcome.critical ? `Critical hit for ${outcome.damage}.` : `You strike for ${outcome.damage}.`
+      : isHeavy ? 'Heavy Strike misses.' : 'Your attack misses.';
     this.appendLog(message);
     this.refreshHud(message);
   }
@@ -1129,7 +1141,8 @@ export class CombatScene extends Phaser.Scene {
 
     let damage = outcome.damage;
     if (this.playerDefending && outcome.hit) {
-      damage = Math.max(1, damage - this.playerStats.defendReduction);
+      const percentageReduction = Math.ceil(damage * 0.7);
+      damage = Math.max(1, damage - Math.max(this.playerStats.defendReduction, percentageReduction));
     }
 
     if (outcome.hit) {
@@ -1163,6 +1176,7 @@ export class CombatScene extends Phaser.Scene {
         }
 
         this.playerDefending = false;
+        this.heavyStrikeCooldown = Math.max(0, this.heavyStrikeCooldown - 1);
         this.playerTurn = true;
         this.actionLocked = false;
         this.refreshHud(`${logMessage} Your turn.`);

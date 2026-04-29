@@ -18,10 +18,10 @@ function createEmptyEquipmentSlots() {
 
 const progressionState = {
   playerCombat: {
-    maxHp: 30,
-    hp: 30,
-    attack: 8,
-    defendReduction: 4,
+    maxHp: 36,
+    hp: 36,
+    attack: 9,
+    defendReduction: 6,
   },
   inventory: {
     slots: INVENTORY_SLOTS,
@@ -39,16 +39,16 @@ const progressionState = {
 function normalizeInventoryState() {
   if (!progressionState.playerCombat || typeof progressionState.playerCombat !== 'object') {
     progressionState.playerCombat = {
-      maxHp: 30,
-      hp: 30,
-      attack: 8,
-      defendReduction: 4,
+      maxHp: 36,
+      hp: 36,
+      attack: 9,
+      defendReduction: 6,
     };
   }
 
-  progressionState.playerCombat.maxHp = progressionState.playerCombat.maxHp ?? 30;
-  progressionState.playerCombat.attack = progressionState.playerCombat.attack ?? 8;
-  progressionState.playerCombat.defendReduction = progressionState.playerCombat.defendReduction ?? 4;
+  progressionState.playerCombat.maxHp = Math.max(progressionState.playerCombat.maxHp ?? 36, 36);
+  progressionState.playerCombat.attack = Math.max(progressionState.playerCombat.attack ?? 9, 9);
+  progressionState.playerCombat.defendReduction = Math.max(progressionState.playerCombat.defendReduction ?? 6, 6);
   progressionState.playerCombat.hp = Math.max(
     0,
     Math.min(

@@ -54,6 +54,7 @@ const ENEMY_CHASE_SPEED = 120;
 const ENEMY_COUNT_MIN = 2;
 const ENEMY_COUNT_MAX = 4;
 const CHEST_INTERACT_DISTANCE = 34;
+const EXIT_PORTAL_INTERACT_DISTANCE = 54;
 
 const DIGIT_KEY_CODES = new Map([
   [Phaser.Input.Keyboard.KeyCodes.ZERO, 0],
@@ -90,6 +91,14 @@ const ENEMY_TYPES = [
   { name: 'Green Slime', maxHp: 24, attack: 6, spriteKey: 'slime-idle', scale: 1.05 },
   { name: 'Spore Plant', maxHp: 28, attack: 7, spriteKey: 'plant1-idle', scale: 1.05 },
   { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle', scale: 1.0 },
+];
+
+const DUNGEON_COMBAT_TUNING = [
+  { hpScale: 0.62, attackScale: 0.5 },
+  { hpScale: 0.72, attackScale: 0.58 },
+  { hpScale: 0.84, attackScale: 0.68 },
+  { hpScale: 0.94, attackScale: 0.78 },
+  { hpScale: 1.05, attackScale: 0.88 },
 ];
 
 const DEFAULT_VISUAL_PROFILE = {
@@ -237,6 +246,7 @@ export class DungeonScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.obstacles);
     this.spawnRoamingEnemies();
+    this.createExitPortal(spawnPosition);
     this.addInstructionHud();
     this.updateEncounterUi();
     this.devModeController = new DeveloperModeController(this, {
@@ -331,7 +341,7 @@ export class DungeonScene extends Phaser.Scene {
 
   addInstructionHud() {
     this.add
-      .text(16, 12, 'Move: WASD/Arrows | Hold Shift: sprint | E: open chest | I/Tab: inventory | Q: return', {
+      .text(16, 12, 'Move: WASD/Arrows | Hold Shift: sprint | E: interact | I/Tab: inventory | Q: quick return', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#f4f4f4',
@@ -415,6 +425,18 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH)
       .setVisible(false);
 
+    this.exitPortalPrompt = this.add
+      .text(16, 68, 'Press E to exit dungeon', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#d6f0ff',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
+
     this.chestRewardLabel = this.add
       .text(16, 96, 'Latest chest reward: none yet', {
         fontFamily: 'monospace',
@@ -425,6 +447,33 @@ export class DungeonScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
+  }
+
+  createExitPortal(spawnPosition) {
+    this.exitPortalCenter = { x: spawnPosition.x, y: spawnPosition.y };
+
+    const base = this.add
+      .ellipse(spawnPosition.x, spawnPosition.y + 15, 70, 28, 0x62c7ff, 0.26)
+      .setDepth(spawnPosition.y - 8);
+    const ring = this.add
+      .ellipse(spawnPosition.x, spawnPosition.y + 10, 54, 22, 0x0e1830, 0.12)
+      .setStrokeStyle(3, 0xbcecff, 0.78)
+      .setDepth(spawnPosition.y - 7);
+    const glow = this.add
+      .circle(spawnPosition.x, spawnPosition.y - 2, 22, 0x8fdcff, 0.18)
+      .setStrokeStyle(2, 0xe6fbff, 0.52)
+      .setDepth(spawnPosition.y - 6);
+
+    this.tweens.add({
+      targets: [base, ring, glow],
+      alpha: '+=0.18',
+      scaleX: 1.08,
+      scaleY: 1.08,
+      duration: 850,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
   }
 
   updateEncounterUi() {
@@ -1237,6 +1286,10 @@ export class DungeonScene extends Phaser.Scene {
       return;
     }
 
+    if (this.updateExitPortalInteraction()) {
+      return;
+    }
+
     this.updateChestInteraction();
 
     if (this.dungeonDebugHudVisible) {
@@ -1271,7 +1324,7 @@ export class DungeonScene extends Phaser.Scene {
 
   updateChestInteraction() {
     const nearbyChest = this.getNearbyClosedChest();
-    this.chestPrompt?.setVisible(Boolean(nearbyChest));
+    this.chestPrompt?.setVisible(Boolean(nearbyChest) && !this.exitPortalPrompt?.visible);
 
     if (!nearbyChest || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       return;
@@ -1287,6 +1340,28 @@ export class DungeonScene extends Phaser.Scene {
     if (this.chestRewardLabel) {
       this.chestRewardLabel.setText(`Latest chest reward: ${rewardResult.summaryText}`);
     }
+  }
+
+  updateExitPortalInteraction() {
+    if (!this.exitPortalCenter) {
+      return false;
+    }
+
+    const distance = Phaser.Math.Distance.Between(
+      this.player.x,
+      this.player.y,
+      this.exitPortalCenter.x,
+      this.exitPortalCenter.y,
+    );
+    const nearPortal = distance <= EXIT_PORTAL_INTERACT_DISTANCE;
+    this.exitPortalPrompt?.setVisible(nearPortal);
+
+    if (!nearPortal || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      return false;
+    }
+
+    this.returnToOverworld();
+    return true;
   }
 
   getNearbyClosedChest() {
@@ -1408,7 +1483,7 @@ export class DungeonScene extends Phaser.Scene {
       this.enemies.getChildren().forEach((enemySprite) => enemySprite.setVelocity(0, 0));
     }
 
-    const enemyStats = { ...(enemy?.enemyStats ?? ENEMY_TYPES[0]) };
+    const enemyStats = this.applyDungeonCombatTuning(enemy?.enemyStats ?? ENEMY_TYPES[0]);
     const playerStats = { ...getPlaytestCombatantState() };
 
     this.scene.start('combat', {
@@ -1424,6 +1499,18 @@ export class DungeonScene extends Phaser.Scene {
         defeatedEnemyId: enemy?.enemyId ?? null,
       },
     });
+  }
+
+  applyDungeonCombatTuning(enemyStats) {
+    const tierIndex = Phaser.Math.Clamp(this.layoutState.poolIndex ?? 0, 0, DUNGEON_COMBAT_TUNING.length - 1);
+    const tuning = DUNGEON_COMBAT_TUNING[tierIndex] ?? DUNGEON_COMBAT_TUNING[0];
+
+    return {
+      ...enemyStats,
+      maxHp: Math.max(10, Math.round(enemyStats.maxHp * tuning.hpScale)),
+      attack: Math.max(2, Math.round(enemyStats.attack * tuning.attackScale)),
+      tier: tierIndex + 1,
+    };
   }
 
   regenerateDungeon() {
