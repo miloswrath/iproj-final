@@ -1107,7 +1107,7 @@ export class CombatScene extends Phaser.Scene {
 
     this.runAttackSequence({
       actor: 'player',
-      style: 'kitty',
+      style: isHeavy ? 'heavy-kitty' : 'kitty',
       outcome,
       onHit: () => {
         this.enemyStats.hp = Math.max(0, this.enemyStats.hp - outcome.damage);
@@ -1190,12 +1190,16 @@ export class CombatScene extends Phaser.Scene {
     const attacker = actor === 'player' ? this.playerSprite : this.enemySprite;
     const attackerIdle = actor === 'player' ? 'combat-player-idle' : `${this.enemyStats.spriteKey}-loop`;
     const isPlayer = actor === 'player';
+    const isHeavy = isPlayer && style === 'heavy-kitty';
     const startX = isPlayer ? this.ui.playerX : this.ui.enemyX;
     const startY = isPlayer ? this.ui.playerY : this.ui.enemyY;
     const targetX = isPlayer ? this.ui.enemyX : this.ui.playerX;
     const targetY = isPlayer ? this.ui.enemyY : this.ui.playerY;
-    const dashX = startX + (isPlayer ? 56 : -54);
-    const angle = isPlayer ? 8 : -10;
+    const dashX = startX + (isPlayer ? (isHeavy ? 86 : 56) : -54);
+    const dashY = startY - (isHeavy ? 30 : 14);
+    const angle = isPlayer ? (isHeavy ? 18 : 8) : -10;
+    const duration = isHeavy ? 210 : 140;
+    const hold = isHeavy ? 90 : 45;
 
     if (isPlayer) {
       this.playerIdleFloat?.pause();
@@ -1203,14 +1207,19 @@ export class CombatScene extends Phaser.Scene {
     }
 
     attacker.setAngle(angle);
+    if (isHeavy) {
+      attacker.setTint(0xfff0a6);
+    }
     this.tweens.add({
       targets: attacker,
       x: dashX,
-      y: startY - 14,
+      y: dashY,
+      scaleX: isHeavy ? PLAYER_VISUAL_CONFIG.scale * 1.13 : attacker.scaleX,
+      scaleY: isHeavy ? PLAYER_VISUAL_CONFIG.scale * 1.13 : attacker.scaleY,
       ease: 'Cubic.easeOut',
-      duration: 140,
+      duration,
       yoyo: true,
-      hold: 45,
+      hold,
       onYoyo: () => {
         if (outcome.hit) {
           onHit?.();
@@ -1220,6 +1229,10 @@ export class CombatScene extends Phaser.Scene {
       onComplete: () => {
         attacker.setAngle(0);
         attacker.setPosition(startX, startY);
+        if (isHeavy) {
+          attacker.clearTint();
+          attacker.setScale(PLAYER_VISUAL_CONFIG.scale);
+        }
         if (isPlayer) {
           attacker.play(attackerIdle);
           this.playerIdleFloat?.resume();
@@ -1230,6 +1243,11 @@ export class CombatScene extends Phaser.Scene {
   }
 
   spawnAttackEffect(style, leftToRight, targetX, targetY, critical = false) {
+    if (style === 'heavy-kitty') {
+      this.spawnHeavyStrike(targetX, targetY, critical, leftToRight);
+      return;
+    }
+
     if (style === 'slime') {
       this.spawnSlimeBurst(targetX, targetY, critical);
       return;
@@ -1253,6 +1271,42 @@ export class CombatScene extends Phaser.Scene {
       critical,
       leftToRight,
     );
+  }
+
+  spawnHeavyStrike(x, y, critical = false, leftToRight = true) {
+    const color = critical ? 0xfff3a0 : 0xffc857;
+    const impact = this.add.circle(x, y + 6, critical ? 42 : 34, color, 0.24)
+      .setStrokeStyle(5, 0xffffff, 0.8);
+    const shockwave = this.add.ellipse(x, y + 28, critical ? 126 : 104, critical ? 34 : 28, color, 0.2)
+      .setStrokeStyle(4, 0xfff7cf, 0.72);
+    const slam = this.add.rectangle(x - (leftToRight ? 18 : -18), y - 18, 16, 92, color, 0.88)
+      .setAngle(leftToRight ? 38 : -38);
+    const sparkA = this.add.star(x + (leftToRight ? 24 : -24), y - 26, 5, 7, critical ? 24 : 18, 0xffffff, 0.92);
+    const sparkB = this.add.star(x - (leftToRight ? 18 : -18), y + 8, 5, 5, critical ? 18 : 13, color, 0.82);
+
+    this.tweens.add({
+      targets: [impact, shockwave],
+      alpha: 0,
+      scaleX: 1.7,
+      scaleY: 1.45,
+      duration: 240,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        impact.destroy();
+        shockwave.destroy();
+      },
+    });
+
+    this.tweens.add({
+      targets: [slam, sparkA, sparkB],
+      alpha: 0,
+      y: '-=18',
+      scaleX: 1.25,
+      scaleY: 1.25,
+      duration: 220,
+      ease: 'Quad.easeOut',
+      onComplete: () => [slam, sparkA, sparkB].forEach((node) => node.destroy()),
+    });
   }
 
   spawnSlimeBurst(x, y, critical = false) {

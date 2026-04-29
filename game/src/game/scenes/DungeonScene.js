@@ -52,6 +52,7 @@ const FALLBACK_DUNGEON_POOL_SIZE = 3;
 const ACTIVE_CURATED_DUNGEON_COUNT = 5;
 const ENEMY_LINE_OF_SIGHT_CELLS = 8;
 const ENEMY_CHASE_SPEED = 120;
+const ENEMY_PATH_RECALC_MS = 260;
 const ENEMY_COUNT_MIN = 2;
 const ENEMY_COUNT_MAX = 4;
 const CHEST_INTERACT_DISTANCE = 34;
@@ -1114,6 +1115,9 @@ export class DungeonScene extends Phaser.Scene {
       enemy.spawnCell = cell;
       enemy.homeScale = enemyType.scale;
       enemy.chasing = false;
+      enemy.pathCells = [];
+      enemy.pathTargetKey = null;
+      enemy.nextPathRefreshAt = 0;
       enemy.body.setSize(enemy.width * 0.45, enemy.height * 0.55);
       this.playEnemyIdle(enemy);
       this.enemies.add(enemy);
@@ -1181,6 +1185,9 @@ export class DungeonScene extends Phaser.Scene {
 
     this.tweens.killTweensOf(enemy);
     enemy.chasing = false;
+    enemy.pathCells = [];
+    enemy.pathTargetKey = null;
+    enemy.nextPathRefreshAt = 0;
     enemy.setVelocity(0, 0);
     enemy.clearTint();
     enemy.setAlpha(1);
@@ -1468,12 +1475,101 @@ export class DungeonScene extends Phaser.Scene {
       }
 
       if (enemy.chasing) {
-        this.physics.moveToObject(enemy, this.player, ENEMY_CHASE_SPEED);
+        this.updateEnemyPathChase(enemy);
         enemy.setDepth(enemy.y + ENEMY_DEPTH_OFFSET);
       } else {
         enemy.setVelocity(0, 0);
       }
     }
+  }
+
+  updateEnemyPathChase(enemy) {
+    const enemyCell = this.worldToCell(enemy.x, enemy.y);
+    const playerCell = this.worldToCell(this.player.x, this.player.y);
+    const playerKey = `${playerCell.x},${playerCell.y}`;
+    const now = this.time.now;
+
+    if (
+      !Array.isArray(enemy.pathCells) ||
+      enemy.pathCells.length === 0 ||
+      enemy.pathTargetKey !== playerKey ||
+      now >= (enemy.nextPathRefreshAt ?? 0)
+    ) {
+      enemy.pathCells = this.findPathCells(enemyCell, playerCell);
+      enemy.pathTargetKey = playerKey;
+      enemy.nextPathRefreshAt = now + ENEMY_PATH_RECALC_MS;
+    }
+
+    if (!enemy.pathCells || enemy.pathCells.length === 0) {
+      enemy.setVelocity(0, 0);
+      return;
+    }
+
+    let nextCell = enemy.pathCells[0];
+    let nextCenter = this.cellToWorld(nextCell.x, nextCell.y);
+    const closeToNext = Phaser.Math.Distance.Between(enemy.x, enemy.y, nextCenter.x, nextCenter.y) <= 8;
+    if (closeToNext && enemy.pathCells.length > 1) {
+      enemy.pathCells.shift();
+      nextCell = enemy.pathCells[0];
+      nextCenter = this.cellToWorld(nextCell.x, nextCell.y);
+    }
+
+    this.physics.moveTo(enemy, nextCenter.x, nextCenter.y, ENEMY_CHASE_SPEED);
+  }
+
+  findPathCells(startCell, targetCell) {
+    const startKey = `${startCell.x},${startCell.y}`;
+    const targetKey = `${targetCell.x},${targetCell.y}`;
+
+    if (startKey === targetKey) {
+      return [targetCell];
+    }
+
+    if (!this.floorCellSet.has(startKey) || !this.floorCellSet.has(targetKey)) {
+      return [];
+    }
+
+    const queue = [startCell];
+    const cameFrom = new Map([[startKey, null]]);
+    const neighbors = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ];
+
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
+      const currentKey = `${current.x},${current.y}`;
+      if (currentKey === targetKey) {
+        break;
+      }
+
+      for (const offset of neighbors) {
+        const next = { x: current.x + offset.x, y: current.y + offset.y };
+        const nextKey = `${next.x},${next.y}`;
+        if (cameFrom.has(nextKey) || !this.floorCellSet.has(nextKey)) {
+          continue;
+        }
+
+        cameFrom.set(nextKey, currentKey);
+        queue.push(next);
+      }
+    }
+
+    if (!cameFrom.has(targetKey)) {
+      return [];
+    }
+
+    const path = [];
+    let cursor = targetKey;
+    while (cursor && cursor !== startKey) {
+      const [x, y] = cursor.split(',').map(Number);
+      path.push({ x, y });
+      cursor = cameFrom.get(cursor);
+    }
+
+    return path.reverse();
   }
 
   hasLineOfSightToPlayer(enemy) {
