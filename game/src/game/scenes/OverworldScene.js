@@ -254,8 +254,8 @@ export class OverworldScene extends Phaser.Scene {
 
     if (inDungeonZone && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       this.scene.start('dungeon', {
-        returnX: this.layout.spawnWorld.x,
-        returnY: this.layout.spawnWorld.y,
+        returnX: this.layout.dungeonEntryWorld.x,
+        returnY: this.layout.dungeonEntryWorld.y,
       });
       return;
     }
