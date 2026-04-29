@@ -16,6 +16,12 @@ The dungeon scene exposes exactly three temporary debug actions:
 
 These actions are local runtime controls and are **not** part of public/player release UX.
 
+Current temporary key mapping in `DungeonScene`:
+
+- `F6` → `kill_all_enemies`
+- `F7` → `open_all_chests`
+- `F8` → `skip_to_next_floor`
+
 ---
 
 ## 2) Behavioral requirements
@@ -23,6 +29,7 @@ These actions are local runtime controls and are **not** part of public/player r
 ### `kill_all_enemies`
 - Applies only to active enemies on the current floor.
 - Marks enemies as defeated in the same state pathways used by normal combat resolution where possible.
+- Updates quest-run enemy defeat totals only once per enemy.
 - Repeated triggering after enemies are already cleared is a safe no-op.
 
 ### `open_all_chests`
@@ -31,7 +38,8 @@ These actions are local runtime controls and are **not** part of public/player r
 - Already opened chests must not grant rewards again.
 
 ### `skip_to_next_floor`
-- Uses normal floor completion/transition behavior.
+- Is only actionable during an active quest run.
+- Uses normal floor completion/transition behavior after force-clearing remaining enemy and chest blockers on the current floor.
 - Must run required progression updates normally expected on floor completion.
 - On final floor, behavior follows existing quest-run terminal handling.
 
@@ -42,7 +50,7 @@ These actions are local runtime controls and are **not** part of public/player r
 If invoked when there is no valid active dungeon floor state:
 - Action returns/applies as no-op.
 - Runtime remains stable (no crashes, no partial state writes).
-- Optional user-facing debug feedback may be shown.
+- Scene-local debug feedback is shown and then cleared automatically.
 
 ---
 

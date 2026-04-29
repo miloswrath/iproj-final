@@ -6,7 +6,7 @@ import { createSession } from "../../src/session.js";
 import { defaultCharacterMemory, MEMORY_DIR, readJson } from "../../src/memory/store.js";
 import { withMemoryIsolation } from "../helpers/runtime-harness.js";
 import { buildQuestCompletion } from "../helpers/outcome-builders.js";
-import type { CharacterMemory } from "../../src/types.js";
+import type { CharacterMemory, PlayerProfile } from "../../src/types.js";
 
 const character = {
   name: "enabler",
@@ -15,11 +15,13 @@ const character = {
 };
 
 const charFile = path.join(MEMORY_DIR, "characters", "enabler.json");
+const profileFile = path.join(MEMORY_DIR, "player-profile.json");
 
 test("duplicate completion event is ignored", async () => {
   await withMemoryIsolation(async () => {
     const session = createSession(character, defaultCharacterMemory());
     const baselineMemory = (await readJson<CharacterMemory>(charFile)) ?? defaultCharacterMemory();
+    const baselineProfile = await readJson<PlayerProfile>(profileFile);
     const payload = buildQuestCompletion({ eventTimestamp: "same-event" });
 
     const first = await runQuestCompletionPipeline(session, payload);
@@ -30,8 +32,14 @@ test("duplicate completion event is ignored", async () => {
     assert.equal(second.reason, "duplicate");
 
     const memory = await readJson<CharacterMemory>(charFile);
+    const profile = await readJson<PlayerProfile>(profileFile);
     assert.ok(memory);
+    assert.ok(profile);
     assert.equal(memory.progression.questLevel, baselineMemory.progression.questLevel + 1);
     assert.equal(memory.keyMemories.length, Math.min(baselineMemory.keyMemories.length + 1, 5));
+    assert.equal(
+      profile.globalCharacterLevel,
+      (baselineProfile?.globalCharacterLevel ?? 1) + 1
+    );
   });
 });

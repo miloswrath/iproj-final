@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   applyCombatItemEffect,
   getCombatUsableInventoryItems,
+  recordQuestFloorEnemyDefeated,
   setPlaytestPlayerHp,
 } from '../playtestProgression';
 
@@ -904,6 +905,7 @@ export class CombatScene extends Phaser.Scene {
       const defeatedEnemyId = this.returnContext.defeatedEnemyId;
       if (defeatedEnemyId && !defeatedEnemyIds.includes(defeatedEnemyId)) {
         defeatedEnemyIds.push(defeatedEnemyId);
+        recordQuestFloorEnemyDefeated(defeatedEnemyId);
       }
 
       const enemyCount = this.returnContext.layoutState?.enemyCount ?? defeatedEnemyIds.length;

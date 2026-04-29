@@ -28,6 +28,7 @@ This field coexists with existing profile metrics (`isolation`, `hope`, `burnout
 - Required at runtime after load normalization
 
 If value is missing, null, non-numeric, non-integer, or `< 1`, the loader normalizes it to `1`.
+The normalized shape is then persisted on the next profile write.
 
 ---
 
@@ -46,6 +47,7 @@ No increment occurs for `failure` or `abandoned` outcomes.
 Duplicate quest completion events must not cause additional increments.
 
 The level increment follows existing quest-completion idempotency checks so a replayed event is treated as already processed.
+`POST /api/v1/quest/complete` accepts an optional caller-provided `eventTimestamp`; when retries reuse the same value, they dedupe against the same completion key.
 
 ---
 

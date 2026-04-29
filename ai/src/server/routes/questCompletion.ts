@@ -35,6 +35,7 @@ async function handleQuestComplete(
     outcome?: unknown;
     rewardReceived?: unknown;
     playerLevel?: unknown;
+    eventTimestamp?: unknown;
     runSummary?: unknown;
   };
   try {
@@ -57,6 +58,10 @@ async function handleQuestComplete(
     typeof body.playerLevel === "number" && Number.isFinite(body.playerLevel)
       ? body.playerLevel
       : 1;
+  const eventTimestamp =
+    typeof body.eventTimestamp === "string" && body.eventTimestamp.trim().length > 0
+      ? body.eventTimestamp
+      : new Date().toISOString();
 
   let runSummary: RunSummary | undefined;
   if (body.runSummary && typeof body.runSummary === "object") {
@@ -102,7 +107,6 @@ async function handleQuestComplete(
   const rel = characterMemory.relationship;
   const synthSession = createSession(character, characterMemory);
 
-  const eventTimestamp = new Date().toISOString();
   const payload: QuestCompletionPayload = {
     character: character.name,
     questId,

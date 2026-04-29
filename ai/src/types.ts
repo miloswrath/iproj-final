@@ -118,6 +118,7 @@ export interface PlayerProfile {
   isolation: number;
   hope: number;
   burnout: number;
+  globalCharacterLevel: number;
   traits: {
     trustsQuickly: number;
     seeksValidation: number;

@@ -39,11 +39,49 @@ export function defaultPlayerProfile(): PlayerProfile {
     isolation: 50,
     hope: 50,
     burnout: 30,
+    globalCharacterLevel: 1,
     traits: {
       trustsQuickly: 0.5,
       seeksValidation: 0.5,
       skepticism: 0.5,
       riskTolerance: 0.5,
+    },
+  };
+}
+
+function normalizeGlobalCharacterLevel(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
+    return 1;
+  }
+
+  return value;
+}
+
+export function normalizePlayerProfile(profile: Partial<PlayerProfile> | null | undefined): PlayerProfile {
+  const defaults = defaultPlayerProfile();
+
+  return {
+    isolation: typeof profile?.isolation === "number" ? profile.isolation : defaults.isolation,
+    hope: typeof profile?.hope === "number" ? profile.hope : defaults.hope,
+    burnout: typeof profile?.burnout === "number" ? profile.burnout : defaults.burnout,
+    globalCharacterLevel: normalizeGlobalCharacterLevel(profile?.globalCharacterLevel),
+    traits: {
+      trustsQuickly:
+        typeof profile?.traits?.trustsQuickly === "number"
+          ? profile.traits.trustsQuickly
+          : defaults.traits.trustsQuickly,
+      seeksValidation:
+        typeof profile?.traits?.seeksValidation === "number"
+          ? profile.traits.seeksValidation
+          : defaults.traits.seeksValidation,
+      skepticism:
+        typeof profile?.traits?.skepticism === "number"
+          ? profile.traits.skepticism
+          : defaults.traits.skepticism,
+      riskTolerance:
+        typeof profile?.traits?.riskTolerance === "number"
+          ? profile.traits.riskTolerance
+          : defaults.traits.riskTolerance,
     },
   };
 }
@@ -109,7 +147,7 @@ export async function loadAllMemory(characterName: string): Promise<{
   ]);
 
   return {
-    playerProfile: playerProfile ?? defaultPlayerProfile(),
+    playerProfile: normalizePlayerProfile(playerProfile),
     playerSummary: playerSummary ?? defaultPlayerSummary(),
     characterMemory: characterMemory ?? defaultCharacterMemory(inferArchetype(characterName)),
   };

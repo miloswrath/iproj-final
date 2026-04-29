@@ -298,10 +298,22 @@ export function advanceQuestRunFloor() {
 export function recordQuestFloorEnemyDefeated(enemyId) {
   const state = progressionState.questRunState;
   if (!state) return;
+  if (!state.defeatedEnemyIds) {
+    state.defeatedEnemyIds = {};
+  }
+  const floorKey = `floor${state.currentFloorIndex}`;
+  if (enemyId && state.defeatedEnemyIds[floorKey]?.includes(enemyId)) {
+    return;
+  }
+  if (enemyId) {
+    if (!state.defeatedEnemyIds[floorKey]) {
+      state.defeatedEnemyIds[floorKey] = [];
+    }
+    state.defeatedEnemyIds[floorKey].push(enemyId);
+  }
   if (!state.floorStats) state.floorStats = {};
-  const key = `floor${state.currentFloorIndex}`;
-  if (!state.floorStats[key]) state.floorStats[key] = { enemiesDefeated: 0, chestsOpened: 0 };
-  state.floorStats[key].enemiesDefeated += 1;
+  if (!state.floorStats[floorKey]) state.floorStats[floorKey] = { enemiesDefeated: 0, chestsOpened: 0 };
+  state.floorStats[floorKey].enemiesDefeated += 1;
   state.totalEnemiesDefeated = (state.totalEnemiesDefeated ?? 0) + 1;
 }
 

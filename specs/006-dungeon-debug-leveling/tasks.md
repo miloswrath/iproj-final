@@ -17,9 +17,9 @@
 
 **Purpose**: Align fixtures, validation notes, and shared type surface before feature work branches into `game/` and `ai/`.
 
-- [ ] T001 Update feature validation steps and expected debug/leveling checks in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/quickstart.md`
-- [ ] T002 [P] Extend quest completion test fixture builders for leveling scenarios in `/home/zak/school/sp26/cs/final/ai/tests/helpers/outcome-builders.ts`
-- [ ] T003 [P] Add `globalCharacterLevel` to shared profile typings in `/home/zak/school/sp26/cs/final/ai/src/types.ts`
+- [X] T001 Update feature validation steps and expected debug/leveling checks in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/quickstart.md`
+- [X] T002 [P] Extend quest completion test fixture builders for leveling scenarios in `/home/zak/school/sp26/cs/final/ai/tests/helpers/outcome-builders.ts`
+- [X] T003 [P] Add `globalCharacterLevel` to shared profile typings in `/home/zak/school/sp26/cs/final/ai/src/types.ts`
 
 ---
 
@@ -29,9 +29,9 @@
 
 **⚠️ CRITICAL**: Complete this phase before implementing User Stories 2 or 3.
 
-- [ ] T004 Normalize `globalCharacterLevel` defaults and persistence reads/writes in `/home/zak/school/sp26/cs/final/ai/src/memory/store.ts`
-- [ ] T005 [P] Implement success-only global level mutation rules in `/home/zak/school/sp26/cs/final/ai/src/memory/updater.ts`
-- [ ] T006 [P] Seed isolated test memory with compatible profile defaults in `/home/zak/school/sp26/cs/final/ai/tests/helpers/runtime-harness.ts`
+- [X] T004 Normalize `globalCharacterLevel` defaults and persistence reads/writes in `/home/zak/school/sp26/cs/final/ai/src/memory/store.ts`
+- [X] T005 [P] Implement success-only global level mutation rules in `/home/zak/school/sp26/cs/final/ai/src/memory/updater.ts`
+- [X] T006 [P] Seed isolated test memory with compatible profile defaults in `/home/zak/school/sp26/cs/final/ai/tests/helpers/runtime-harness.ts`
 
 **Checkpoint**: AI memory/profile infrastructure is ready for leveling stories.
 
@@ -45,11 +45,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Add temporary debug keybind registration and HUD/help text for dungeon actions in `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js`
-- [ ] T008 [US1] Implement `kill_all_enemies` using existing enemy defeat and floor-objective pathways in `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js`
-- [ ] T009 [US1] Implement `open_all_chests` with unopened-chest guards and reward application through `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js` and `/home/zak/school/sp26/cs/final/game/src/game/playtestProgression.js`
-- [ ] T010 [US1] Implement `skip_to_next_floor` through normal quest floor completion/advance flow in `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js` and `/home/zak/school/sp26/cs/final/game/src/game/playtestProgression.js`
-- [ ] T011 [P] [US1] Document manual validation coverage for valid and invalid debug contexts in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/quickstart.md`
+- [X] T007 [US1] Add temporary debug keybind registration and HUD/help text for dungeon actions in `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js`
+- [X] T008 [US1] Implement `kill_all_enemies` using existing enemy defeat and floor-objective pathways in `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js`
+- [X] T009 [US1] Implement `open_all_chests` with unopened-chest guards and reward application through `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js` and `/home/zak/school/sp26/cs/final/game/src/game/playtestProgression.js`
+- [X] T010 [US1] Implement `skip_to_next_floor` through normal quest floor completion/advance flow in `/home/zak/school/sp26/cs/final/game/src/game/scenes/DungeonScene.js` and `/home/zak/school/sp26/cs/final/game/src/game/playtestProgression.js`
+- [X] T011 [P] [US1] Document manual validation coverage for valid and invalid debug contexts in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/quickstart.md`
 
 **Checkpoint**: User Story 1 is fully playable and independently verifiable in the game runtime.
 
@@ -63,14 +63,14 @@
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] Add route/contract assertions for level-aware quest completion payload handling in `/home/zak/school/sp26/cs/final/ai/tests/server/quest-complete-route.test.ts` and `/home/zak/school/sp26/cs/final/ai/tests/contract/quest-complete.contract.test.ts`
-- [ ] T013 [P] [US2] Add integration assertions for successful completion persistence and non-success no-op cases in `/home/zak/school/sp26/cs/final/ai/tests/integration/quest-complete-pipeline.integration.test.ts`
+- [X] T012 [P] [US2] Add route/contract assertions for level-aware quest completion payload handling in `/home/zak/school/sp26/cs/final/ai/tests/server/quest-complete-route.test.ts` and `/home/zak/school/sp26/cs/final/ai/tests/contract/quest-complete.contract.test.ts`
+- [X] T013 [P] [US2] Add integration assertions for successful completion persistence and non-success no-op cases in `/home/zak/school/sp26/cs/final/ai/tests/integration/quest-complete-pipeline.integration.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Add `globalCharacterLevel` to the persisted profile seed in `/home/zak/school/sp26/cs/final/ai/memory/player-profile.json`
-- [ ] T015 [US2] Increment and persist `globalCharacterLevel` only for successful completions in `/home/zak/school/sp26/cs/final/ai/src/lifecycle/pipeline.ts` and `/home/zak/school/sp26/cs/final/ai/src/memory/updater.ts`
-- [ ] T016 [US2] Keep quest completion route payload assembly and response behavior compatible with leveling persistence in `/home/zak/school/sp26/cs/final/ai/src/server/routes/questCompletion.ts`
+- [X] T014 [US2] Add `globalCharacterLevel` to the persisted profile seed in `/home/zak/school/sp26/cs/final/ai/memory/player-profile.json`
+- [X] T015 [US2] Increment and persist `globalCharacterLevel` only for successful completions in `/home/zak/school/sp26/cs/final/ai/src/lifecycle/pipeline.ts` and `/home/zak/school/sp26/cs/final/ai/src/memory/updater.ts`
+- [X] T016 [US2] Keep quest completion route payload assembly and response behavior compatible with leveling persistence in `/home/zak/school/sp26/cs/final/ai/src/server/routes/questCompletion.ts`
 
 **Checkpoint**: User Story 2 persists global leveling correctly across successful quest completions and reloads.
 
@@ -84,13 +84,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T017 [P] [US3] Add legacy-profile and invalid-level fixtures to isolated memory tests in `/home/zak/school/sp26/cs/final/ai/tests/helpers/runtime-harness.ts` and `/home/zak/school/sp26/cs/final/ai/tests/integration/quest-complete-pipeline.integration.test.ts`
-- [ ] T018 [P] [US3] Add duplicate-event migration coverage so upgraded profiles do not double-level on retries in `/home/zak/school/sp26/cs/final/ai/tests/integration/quest-complete-idempotency.integration.test.ts`
+- [X] T017 [P] [US3] Add legacy-profile and invalid-level fixtures to isolated memory tests in `/home/zak/school/sp26/cs/final/ai/tests/helpers/runtime-harness.ts` and `/home/zak/school/sp26/cs/final/ai/tests/integration/quest-complete-pipeline.integration.test.ts`
+- [X] T018 [P] [US3] Add duplicate-event migration coverage so upgraded profiles do not double-level on retries in `/home/zak/school/sp26/cs/final/ai/tests/integration/quest-complete-idempotency.integration.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Normalize missing, null, non-integer, and `< 1` profile values to `1` in `/home/zak/school/sp26/cs/final/ai/src/memory/store.ts` and `/home/zak/school/sp26/cs/final/ai/src/types.ts`
-- [ ] T020 [US3] Preserve upgraded-profile behavior across duplicate, failure, and abandoned completion paths in `/home/zak/school/sp26/cs/final/ai/src/lifecycle/pipeline.ts` and `/home/zak/school/sp26/cs/final/ai/src/memory/updater.ts`
+- [X] T019 [US3] Normalize missing, null, non-integer, and `< 1` profile values to `1` in `/home/zak/school/sp26/cs/final/ai/src/memory/store.ts` and `/home/zak/school/sp26/cs/final/ai/src/types.ts`
+- [X] T020 [US3] Preserve upgraded-profile behavior across duplicate, failure, and abandoned completion paths in `/home/zak/school/sp26/cs/final/ai/src/lifecycle/pipeline.ts` and `/home/zak/school/sp26/cs/final/ai/src/memory/updater.ts`
 
 **Checkpoint**: Legacy profiles upgrade safely and remain compatible with idempotent quest completion processing.
 
@@ -100,8 +100,8 @@
 
 **Purpose**: Finish documentation, contract alignment, and end-to-end regression verification across both modules.
 
-- [ ] T021 [P] Update final behavior details for debug controls and global level contracts in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/contracts/dungeon-debug-controls-contract.md` and `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/contracts/player-profile-level-contract.md`
-- [ ] T022 [P] Record final regression checklist and command results in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/quickstart.md` after running `pnpm test` in `/home/zak/school/sp26/cs/final/ai` and `npm run validate:dungeons` in `/home/zak/school/sp26/cs/final/game`
+- [X] T021 [P] Update final behavior details for debug controls and global level contracts in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/contracts/dungeon-debug-controls-contract.md` and `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/contracts/player-profile-level-contract.md`
+- [X] T022 [P] Record final regression checklist and command results in `/home/zak/school/sp26/cs/final/specs/006-dungeon-debug-leveling/quickstart.md` after running `pnpm test` in `/home/zak/school/sp26/cs/final/ai` and `npm run validate:dungeons` in `/home/zak/school/sp26/cs/final/game`
 
 ---
 

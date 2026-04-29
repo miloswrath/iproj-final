@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createServer } from "../../src/server/http.js";
 import { _resetForTests as resetEventBus } from "../../src/server/eventBus.js";
+import { MEMORY_DIR, readJson } from "../../src/memory/store.js";
 import { withMemoryIsolation, withMockedFetch } from "../helpers/runtime-harness.js";
+import type { PlayerProfile } from "../../src/types.js";
 
 interface RunningServer {
   server: Server;
@@ -82,6 +85,7 @@ test("C-9: duplicate POST /quest/complete returns applied:false reason:duplicate
           outcome: "success",
           rewardReceived: true,
           playerLevel: 1,
+          eventTimestamp: "2026-04-29T12:00:00.000Z",
         };
 
         const first = await fetch(`${ctx.baseUrl}/api/v1/quest/complete`, {
@@ -135,6 +139,49 @@ test("C-9 sibling: POST /quest/complete with unknown character returns 400 unkno
         assert.equal(res.status, 400);
         const body = (await res.json()) as { error: string };
         assert.equal(body.error, "unknown_character");
+      } finally {
+        await stop(ctx);
+      }
+    });
+  });
+});
+
+test("C-10: POST /quest/complete increments and persists globalCharacterLevel on success", async () => {
+  await withMemoryIsolation(async () => {
+    await withMockedFetch(quietFetchMock(), async () => {
+      const ctx = await startEphemeral();
+      try {
+        const profilePath = path.join(MEMORY_DIR, "player-profile.json");
+        const before = await readJson<PlayerProfile>(profilePath);
+
+        const res = await fetch(`${ctx.baseUrl}/api/v1/quest/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            character: "general",
+            questId: "general_L1_level_up",
+            outcome: "success",
+            rewardReceived: true,
+            playerLevel: 1,
+          }),
+        });
+
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as {
+          applied: boolean;
+          reason: string;
+          memorySyncPending: boolean;
+        };
+        assert.equal(body.applied, true);
+        assert.equal(body.reason, "applied");
+        assert.equal(body.memorySyncPending, false);
+
+        const after = await readJson<PlayerProfile>(profilePath);
+        assert.ok(after);
+        assert.equal(
+          after.globalCharacterLevel,
+          (before?.globalCharacterLevel ?? 1) + 1
+        );
       } finally {
         await stop(ctx);
       }

@@ -13,6 +13,7 @@ import {
   recordDungeonClear,
   getQuestRunState,
   advanceQuestRunFloor,
+  recordQuestFloorEnemyDefeated,
   recordQuestFloorChestOpened,
 } from '../playtestProgression';
 import { recheckFloorObjectives, reportQuestComplete } from '../services/questRunClient';
@@ -50,6 +51,7 @@ const ROOM_THEMES = [
 
 const FIRE_VARIANT_COUNT = 4;
 const FIRE_FRAMES_PER_VARIANT = 6;
+const DEBUG_FEEDBACK_DURATION_MS = 1800;
 
 const FALLBACK_DUNGEON_POOL_SIZE = 3;
 const ACTIVE_CURATED_DUNGEON_COUNT = 5;
@@ -223,10 +225,14 @@ export class DungeonScene extends Phaser.Scene {
     this.digitKeys = [...DIGIT_KEY_CODES.keys()].map((code) => this.input.keyboard.addKey(code));
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.debugKillEnemiesKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F6);
+    this.debugOpenChestsKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F7);
+    this.debugSkipFloorKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F8);
     this.keys = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,S,A,D');
     this.dungeonNumberBuffer = '';
     this.dungeonNumberBufferTimer = null;
+    this.debugFeedbackTimer = null;
     this.combatStarting = false;
 
     if (this.questRunMode && questRunState) {
@@ -356,8 +362,20 @@ export class DungeonScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
 
-    this.statusLabel = this.add
+    this.debugFeedbackLabel = this.add
       .text(16, 68, '', {
+        fontFamily: 'monospace',
+        fontSize: '15px',
+        color: '#ffe7a3',
+        backgroundColor: '#0000008c',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
+
+    this.statusLabel = this.add
+      .text(16, 96, '', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#d9ffb8',
@@ -368,7 +386,7 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     this.layoutLabel = this.add
-      .text(16, 96, '', {
+      .text(16, 124, '', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffdca6',
@@ -379,7 +397,7 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     this.add
-      .text(16, 124, 'Roaming enemies chase when they see you in a straight hall/room line', {
+      .text(16, 152, 'Roaming enemies chase in line of sight | F6 defeat enemies | F7 open chests | F8 skip floor', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffe7a3',
@@ -391,7 +409,7 @@ export class DungeonScene extends Phaser.Scene {
 
     const progressionSummary = getPlaytestProgressionSummary();
     this.add
-      .text(16, 152, `Progression seed: open 1-2 dungeon chests to earn loot (${progressionSummary.rewardsEarned} earned so far)`, {
+      .text(16, 180, `Progression seed: open 1-2 dungeon chests to earn loot (${progressionSummary.rewardsEarned} earned so far)`, {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#b9ffd8',
@@ -404,7 +422,7 @@ export class DungeonScene extends Phaser.Scene {
 
   createChestUi() {
     this.chestPrompt = this.add
-      .text(16, 180, 'Press E to open chest', {
+      .text(16, 208, 'Press E to open chest', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#fff1ad',
@@ -416,7 +434,7 @@ export class DungeonScene extends Phaser.Scene {
       .setVisible(false);
 
     this.chestRewardLabel = this.add
-      .text(16, 208, 'Latest chest reward: none yet', {
+      .text(16, 236, 'Latest chest reward: none yet', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#c8ffbc',
@@ -442,6 +460,177 @@ export class DungeonScene extends Phaser.Scene {
     const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
     const totalEnemies = this.layoutState.enemyCount ?? 0;
     this.statusLabel.setText(`Roaming enemies: ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} active.`);
+  }
+
+  showDebugFeedback(message, color = '#ffe7a3') {
+    if (!this.debugFeedbackLabel) {
+      return;
+    }
+
+    this.debugFeedbackLabel.setText(`[debug] ${message}`);
+    this.debugFeedbackLabel.setColor(color);
+    this.debugFeedbackLabel.setVisible(true);
+
+    if (this.debugFeedbackTimer) {
+      this.debugFeedbackTimer.remove(false);
+    }
+
+    this.debugFeedbackTimer = this.time.delayedCall(DEBUG_FEEDBACK_DURATION_MS, () => {
+      this.debugFeedbackLabel?.setVisible(false);
+    });
+  }
+
+  syncFloorObjectiveState() {
+    const check = recheckFloorObjectives(this.layoutState);
+    this.layoutState.encounterCompleted = check.complete;
+    this.updateEncounterUi();
+
+    if (this.questRunMode) {
+      this.checkFloorCompletionGate();
+    }
+
+    return check;
+  }
+
+  handleDebugActions() {
+    if (Phaser.Input.Keyboard.JustDown(this.debugKillEnemiesKey)) {
+      this.applyDebugKillAllEnemies();
+      return true;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.debugOpenChestsKey)) {
+      this.applyDebugOpenAllChests();
+      return true;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.debugSkipFloorKey)) {
+      this.applyDebugSkipToNextFloor();
+      return true;
+    }
+
+    return false;
+  }
+
+  applyDebugKillAllEnemies(options = {}) {
+    if (!this.layoutState || !this.enemies) {
+      if (!options.silent) {
+        this.showDebugFeedback('kill-all ignored: no active dungeon floor.', '#ffb3b3');
+      }
+      return { applied: false, defeatedCount: 0 };
+    }
+
+    const defeatedEnemyIds = new Set(this.layoutState.defeatedEnemyIds ?? []);
+    let defeatedCount = 0;
+
+    for (const enemy of this.enemies.getChildren()) {
+      if (!enemy?.active) {
+        continue;
+      }
+
+      if (enemy.enemyId && !defeatedEnemyIds.has(enemy.enemyId)) {
+        defeatedEnemyIds.add(enemy.enemyId);
+        defeatedCount += 1;
+        if (this.questRunMode) {
+          recordQuestFloorEnemyDefeated(enemy.enemyId);
+        }
+      }
+
+      enemy.disableBody?.(true, true);
+      enemy.destroy();
+    }
+
+    this.layoutState.defeatedEnemyIds = [...defeatedEnemyIds];
+    this.layoutState.enemyCount = Math.max(
+      this.layoutState.enemyCount ?? 0,
+      this.layoutState.defeatedEnemyIds.length,
+    );
+
+    const check = this.syncFloorObjectiveState();
+
+    if (!options.silent) {
+      const message = defeatedCount > 0
+        ? `defeated ${defeatedCount} enemies on this floor.`
+        : 'kill-all ignored: no active enemies remained.';
+      this.showDebugFeedback(message, defeatedCount > 0 ? '#d9ffb8' : '#ffd59a');
+    }
+
+    return { applied: defeatedCount > 0, defeatedCount, check };
+  }
+
+  applyDebugOpenAllChests(options = {}) {
+    if (!this.layoutState || !Array.isArray(this.layoutState.chests)) {
+      if (!options.silent) {
+        this.showDebugFeedback('open-all ignored: no active dungeon floor.', '#ffb3b3');
+      }
+      return { applied: false, openedCount: 0, summaryText: '' };
+    }
+
+    const unopenedChests = this.layoutState.chests.filter((chest) => chest.opened !== true);
+    const summaryChunks = [];
+    let openedCount = 0;
+
+    for (const chest of unopenedChests) {
+      const rewardResult = claimChestRewards(chest, this.layoutState.id);
+      if (!rewardResult.granted) {
+        continue;
+      }
+
+      openedCount += 1;
+      chest.sprite?.setFrame(24);
+      if (rewardResult.summaryText) {
+        summaryChunks.push(rewardResult.summaryText);
+      }
+
+      if (this.questRunMode) {
+        recordQuestFloorChestOpened();
+      }
+    }
+
+    const summaryText = summaryChunks.join(' | ');
+    if (summaryText) {
+      this.layoutState.lastChestRewardText = summaryText;
+      this.chestRewardLabel?.setText(`Latest chest reward: ${summaryText}`);
+    }
+
+    const check = this.syncFloorObjectiveState();
+
+    if (!options.silent) {
+      const message = openedCount > 0
+        ? `opened ${openedCount} chests on this floor.`
+        : 'open-all ignored: no unopened chests remained.';
+      this.showDebugFeedback(message, openedCount > 0 ? '#c8ffbc' : '#ffd59a');
+    }
+
+    return { applied: openedCount > 0, openedCount, summaryText, check };
+  }
+
+  applyDebugSkipToNextFloor() {
+    if (!this.layoutState || !this.questRunMode) {
+      this.showDebugFeedback('skip-floor ignored: no active quest floor.', '#ffb3b3');
+      return false;
+    }
+
+    this.applyDebugKillAllEnemies({ silent: true });
+    this.applyDebugOpenAllChests({ silent: true });
+
+    const check = this.syncFloorObjectiveState();
+    if (!check.complete) {
+      this.showDebugFeedback('skip-floor ignored: floor state could not be completed safely.', '#ffb3b3');
+      return false;
+    }
+
+    if (!this.questFloorGatePassed) {
+      this.checkFloorCompletionGate();
+    }
+
+    if (!this.questFloorGatePassed) {
+      this.showDebugFeedback('skip-floor ignored: progression portal was not available.', '#ffb3b3');
+      return false;
+    }
+
+    this.showDebugFeedback('advancing through the normal floor transition.', '#9fe7ff');
+    this.enterQuestPortal();
+    return true;
   }
 
   spawnPlayer(spawnX, spawnY) {
@@ -1160,6 +1349,10 @@ export class DungeonScene extends Phaser.Scene {
       return;
     }
 
+    if (this.handleDebugActions()) {
+      return;
+    }
+
     this.updateChestInteraction();
 
     if (this.questRunMode) {
@@ -1488,8 +1681,11 @@ export class DungeonScene extends Phaser.Scene {
   // ─── Quest Run Floor Gate ────────────────────────────────────────────────────
 
   checkFloorCompletionGate() {
-    if (!this.questRunMode || this.questFloorGatePassed) return;
+    if (!this.questRunMode) return;
     const check = recheckFloorObjectives(this.layoutState);
+    this.layoutState.encounterCompleted = check.complete;
+    this.updateEncounterUi();
+    if (this.questFloorGatePassed) return;
     if (check.complete) {
       this.questFloorGatePassed = true;
       this.spawnQuestProgressionPortal();
