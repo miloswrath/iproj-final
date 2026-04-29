@@ -15,6 +15,8 @@ import overworldGrass1Url from '../../../assets/objects/overworld/5 Grass/1.png'
 import overworldGrass6Url from '../../../assets/objects/overworld/5 Grass/6.png';
 import overworldStone3Url from '../../../assets/objects/overworld/2 Stone/3.png';
 import overworldBox2Url from '../../../assets/objects/overworld/4 Box/2.png';
+import overworldTowerPad1Url from '../../../assets/objects/overworld/PlaceForTower1.png';
+import overworldTowerPad2Url from '../../../assets/objects/overworld/PlaceForTower2.png';
 import overworldTent1Url from '../../../assets/objects/overworld/6 Tent/1.png';
 import overworldTent2Url from '../../../assets/objects/overworld/6 Tent/2.png';
 import overworldTent3Url from '../../../assets/objects/overworld/6 Tent/3.png';
@@ -70,6 +72,8 @@ export const assetPaths = {
   overworldGrass6Url,
   overworldStone3Url,
   overworldBox2Url,
+  overworldTowerPad1Url,
+  overworldTowerPad2Url,
   overworldTent1Url,
   overworldTent2Url,
   overworldTent3Url,

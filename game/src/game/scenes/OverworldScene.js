@@ -657,14 +657,6 @@ export class OverworldScene extends Phaser.Scene {
         continue;
       }
 
-      if (item.kind === 'market-runner') {
-        this.add.rectangle(worldX, worldY + 4, 54, 8, 0x6b452b, 0.88).setDepth(306);
-        this.add.rectangle(worldX - 20, worldY + 11, 4, 18, 0x5a3921, 0.95).setDepth(306);
-        this.add.rectangle(worldX + 20, worldY + 11, 4, 18, 0x5a3921, 0.95).setDepth(306);
-        this.add.rectangle(worldX, worldY - 4, 48, 10, grain % 2 === 0 ? 0xb7473d : 0x3c7ea6, 0.92).setDepth(307);
-        continue;
-      }
-
       if (item.kind === 'shrine-lantern') {
         this.add.ellipse(worldX, worldY + 13, 24, 10, 0x000000, 0.2).setDepth(305);
         this.add.rectangle(worldX, worldY + 5, 10, 24, 0x4a5248, 1).setStrokeStyle(2, 0x20261f, 0.85).setDepth(307);
@@ -803,6 +795,24 @@ export class OverworldScene extends Phaser.Scene {
           .image(worldX, worldY - 12, 'forest-willow-1')
           .setDepth(worldY + 125)
           .setScale(0.88);
+      } else if (item.kind === 'tower-pad-1') {
+        this.add.ellipse(worldX, worldY + 11, 54, 22, 0x000000, 0.18).setDepth(worldY + 101);
+        this.add
+          .image(worldX, worldY - 2, 'overworld-tower-pad-1')
+          .setDepth(worldY + 116)
+          .setScale(0.88);
+      } else if (item.kind === 'tower-pad-2') {
+        this.add.ellipse(worldX, worldY + 11, 48, 20, 0x000000, 0.18).setDepth(worldY + 101);
+        this.add
+          .image(worldX, worldY - 1, 'overworld-tower-pad-2')
+          .setDepth(worldY + 116)
+          .setScale(0.92);
+      } else if (item.kind === 'village-gazebo') {
+        this.add.ellipse(worldX, worldY + 14, 72, 22, 0x000000, 0.18).setDepth(worldY + 101);
+        this.add
+          .image(worldX, worldY - 15, 'forest-living-gazebo-1')
+          .setDepth(worldY + 124)
+          .setScale(0.52);
       } else if (item.kind === 'tent-1') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-1')
