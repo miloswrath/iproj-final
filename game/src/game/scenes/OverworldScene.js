@@ -578,6 +578,13 @@ export class OverworldScene extends Phaser.Scene {
         graphics.strokeRect(worldX + 1, worldY + 1, this.layout.tileSize - 2, this.layout.tileSize - 2);
       }
     }
+
+    for (const rect of this.layout.collisionRects ?? []) {
+      graphics.fillStyle(0x572a1f, 0.18);
+      graphics.fillRect(rect.x - rect.width / 2, rect.y - rect.height / 2, rect.width, rect.height);
+      graphics.lineStyle(1, 0xffd27d, 0.6);
+      graphics.strokeRect(rect.x - rect.width / 2, rect.y - rect.height / 2, rect.width, rect.height);
+    }
   }
 
   renderDecorLayer() {
@@ -614,6 +621,47 @@ export class OverworldScene extends Phaser.Scene {
         this.add.rectangle(worldX, worldY + 8, 4, 24, 0x6b452b, 1).setDepth(307);
         this.add.rectangle(worldX, worldY - 5, 26, 14, 0x9f7045, 1).setStrokeStyle(2, 0x4d321f, 0.9).setDepth(308);
         this.add.rectangle(worldX, worldY - 5, 17, 2, 0xe0bd7f, 0.75).setDepth(309);
+        continue;
+      }
+
+      if (item.kind === 'town-well') {
+        this.add.ellipse(worldX, worldY + 14, 34, 12, 0x000000, 0.2).setDepth(305);
+        this.add.circle(worldX, worldY + 3, 15, 0x817568, 1).setStrokeStyle(3, 0x4c4036, 0.9).setDepth(307);
+        this.add.circle(worldX, worldY + 3, 8, 0x223844, 0.86).setDepth(308);
+        this.add.rectangle(worldX - 14, worldY - 11, 5, 22, 0x6b452b, 1).setDepth(307);
+        this.add.rectangle(worldX + 14, worldY - 11, 5, 22, 0x6b452b, 1).setDepth(307);
+        this.add.rectangle(worldX, worldY - 24, 36, 6, 0x8a5a3a, 1).setDepth(308);
+        continue;
+      }
+
+      if (item.kind === 'town-fountain') {
+        this.add.ellipse(worldX, worldY + 14, 48, 16, 0x000000, 0.18).setDepth(305);
+        this.add.ellipse(worldX, worldY + 6, 42, 22, 0x7b756b, 1).setStrokeStyle(3, 0x4f4a43, 0.88).setDepth(307);
+        this.add.ellipse(worldX, worldY + 4, 30, 13, 0x7fc6dc, 0.72).setDepth(308);
+        this.add.circle(worldX, worldY - 5, 6, 0xb6dbe5, 0.9).setDepth(309);
+        continue;
+      }
+
+      if (item.kind === 'flower-bed') {
+        this.add.rectangle(worldX, worldY + 8, 44, 14, 0x5b3a22, 0.92).setStrokeStyle(2, 0x382313, 0.82).setDepth(306);
+        this.add.circle(worldX - 13, worldY + 5, 5, 0xf0d38c, 0.95).setDepth(307);
+        this.add.circle(worldX, worldY + 4, 5, 0xd8a1db, 0.95).setDepth(307);
+        this.add.circle(worldX + 13, worldY + 6, 5, 0x9dd7ff, 0.9).setDepth(307);
+        continue;
+      }
+
+      if (item.kind === 'crate-stack') {
+        this.add.rectangle(worldX - 5, worldY + 8, 18, 16, 0x8c633a, 1).setStrokeStyle(2, 0x4f321c, 0.9).setDepth(307);
+        this.add.rectangle(worldX + 10, worldY + 10, 16, 14, 0xa47745, 1).setStrokeStyle(2, 0x4f321c, 0.9).setDepth(307);
+        this.add.rectangle(worldX + 2, worldY - 5, 16, 14, 0xb27d46, 1).setStrokeStyle(2, 0x4f321c, 0.9).setDepth(308);
+        continue;
+      }
+
+      if (item.kind === 'market-runner') {
+        this.add.rectangle(worldX, worldY + 4, 54, 8, 0x6b452b, 0.88).setDepth(306);
+        this.add.rectangle(worldX - 20, worldY + 11, 4, 18, 0x5a3921, 0.95).setDepth(306);
+        this.add.rectangle(worldX + 20, worldY + 11, 4, 18, 0x5a3921, 0.95).setDepth(306);
+        this.add.rectangle(worldX, worldY - 4, 48, 10, grain % 2 === 0 ? 0xb7473d : 0x3c7ea6, 0.92).setDepth(307);
         continue;
       }
 
@@ -942,9 +990,23 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   buildCollisionBodies() {
+    const structureCells = new Set();
+    for (const rect of this.layout.collisionRects ?? []) {
+      const minX = Math.max(0, Math.floor((rect.x - rect.width / 2) / this.layout.tileSize));
+      const maxX = Math.min(this.layout.cols - 1, Math.floor((rect.x + rect.width / 2) / this.layout.tileSize));
+      const minY = Math.max(0, Math.floor((rect.y - rect.height / 2) / this.layout.tileSize));
+      const maxY = Math.min(this.layout.rows - 1, Math.floor((rect.y + rect.height / 2) / this.layout.tileSize));
+
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+          structureCells.add(`${x},${y}`);
+        }
+      }
+    }
+
     for (let y = 0; y < this.layout.rows; y += 1) {
       for (let x = 0; x < this.layout.cols; x += 1) {
-        if (!this.layout.blocked[y][x]) {
+        if (!this.layout.blocked[y][x] || structureCells.has(`${x},${y}`)) {
           continue;
         }
 
@@ -954,6 +1016,12 @@ export class OverworldScene extends Phaser.Scene {
         this.physics.add.existing(body, true);
         this.obstacles.add(body);
       }
+    }
+
+    for (const rect of this.layout.collisionRects ?? []) {
+      const body = this.add.zone(rect.x, rect.y, rect.width, rect.height);
+      this.physics.add.existing(body, true);
+      this.obstacles.add(body);
     }
   }
 

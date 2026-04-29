@@ -69,34 +69,40 @@ const BASE_DECOR_CLUSTERS = [
   {
     name: 'town-set',
     items: [
-      { x: 56, y: 7, kind: 'house-1', layer: 'foreground' },
-      { x: 65, y: 7, kind: 'guild-hall-exterior', layer: 'foreground' },
-      { x: 73, y: 7, kind: 'house-4', layer: 'foreground' },
-      { x: 56, y: 18, kind: 'house-3', layer: 'foreground' },
+      { x: 64, y: 7, kind: 'guild-hall-exterior', layer: 'foreground' },
+      { x: 56, y: 8, kind: 'house-1', layer: 'foreground' },
+      { x: 72, y: 8, kind: 'house-4', layer: 'foreground' },
+      { x: 56, y: 17, kind: 'house-3', layer: 'foreground' },
       { x: 64, y: 18, kind: 'house-2', layer: 'foreground' },
-      { x: 72, y: 18, kind: 'house-1', layer: 'foreground' },
-      { x: 60, y: 12, kind: 'tent-1', layer: 'foreground' },
+      { x: 72, y: 17, kind: 'house-1', layer: 'foreground' },
+      { x: 59, y: 13, kind: 'tent-1', layer: 'foreground' },
       { x: 69, y: 13, kind: 'tent-4', layer: 'foreground' },
-      { x: 55, y: 10, kind: 'grass', layer: 'decor' },
-      { x: 60, y: 10, kind: 'flower', layer: 'decor' },
-      { x: 55, y: 15, kind: 'grass', layer: 'decor' },
-      { x: 63, y: 15, kind: 'flower', layer: 'decor' },
+      { x: 62, y: 14, kind: 'town-well', layer: 'decor' },
+      { x: 66, y: 14, kind: 'town-fountain', layer: 'decor' },
+      { x: 54, y: 12, kind: 'flower-bed', layer: 'decor' },
+      { x: 74, y: 12, kind: 'flower-bed', layer: 'decor' },
+      { x: 59, y: 10, kind: 'crate-stack', layer: 'decor' },
+      { x: 69, y: 10, kind: 'crate-stack', layer: 'decor' },
+      { x: 63, y: 16, kind: 'flower', layer: 'decor' },
+      { x: 65, y: 16, kind: 'flower', layer: 'decor' },
       { x: 71, y: 15, kind: 'town-sign', layer: 'decor' },
       { x: 54, y: 6, kind: 'willow-tree', layer: 'foreground' },
-      { x: 73, y: 19, kind: 'willow-tree', layer: 'foreground' },
+      { x: 74, y: 6, kind: 'willow-tree', layer: 'foreground' },
       { x: 54, y: 19, kind: 'mega-tree', layer: 'foreground' },
+      { x: 74, y: 19, kind: 'mega-tree', layer: 'foreground' },
     ],
   },
   {
     name: 'town-detail',
     items: [
-      { x: 57, y: 9, kind: 'grass', layer: 'decor' },
-      { x: 58, y: 9, kind: 'grass', layer: 'decor' },
-      { x: 59, y: 9, kind: 'grass', layer: 'decor' },
-      { x: 63, y: 9, kind: 'flower', layer: 'decor' },
-      { x: 66, y: 9, kind: 'grass', layer: 'decor' },
-      { x: 68, y: 14, kind: 'grass', layer: 'decor' },
-      { x: 64, y: 14, kind: 'flower', layer: 'decor' },
+      { x: 58, y: 11, kind: 'market-runner', layer: 'decor' },
+      { x: 70, y: 11, kind: 'market-runner', layer: 'decor' },
+      { x: 60, y: 16, kind: 'flower-bed', layer: 'decor' },
+      { x: 68, y: 16, kind: 'flower-bed', layer: 'decor' },
+      { x: 61, y: 9, kind: 'grass', layer: 'decor' },
+      { x: 67, y: 9, kind: 'grass', layer: 'decor' },
+      { x: 58, y: 19, kind: 'grass', layer: 'decor' },
+      { x: 70, y: 19, kind: 'grass', layer: 'decor' },
     ],
   },
   {
@@ -183,28 +189,39 @@ const LANDMARK_CELLS = [
 ];
 
 const TOWN_NPCS = [
-  { x: 58, y: 11, role: 'blacksmith-stall', sprite: 'swordsman-idle', frame: 0, scale: 1.18, markerColor: 0xf1ba84 },
-  { x: 64, y: 11, role: 'merchant-stall', sprite: 'vampire1-idle', frame: 2, scale: 1.12, markerColor: 0xf5d483 },
-  { x: 69, y: 11, role: 'provisions-stall', sprite: 'vampire1-idle', frame: 4, scale: 1.12, markerColor: 0x9dd7ff },
-  { x: 57, y: 8, role: 'house-elder', sprite: 'vampire1-idle', frame: 1, scale: 1.08, markerColor: 0xb7f2a5 },
-  { x: 62, y: 8, role: 'scribe', sprite: 'swordsman-idle', frame: 1, scale: 1.16, markerColor: 0xd5c8ff },
-  { x: 71, y: 8, role: 'gate-watch', sprite: 'swordsman-idle', frame: 3, scale: 1.18, markerColor: 0xff9b9b },
-  { x: 57, y: 17, role: 'inn-host', sprite: 'vampire1-idle', frame: 0, scale: 1.08, markerColor: 0xbde0ff },
-  { x: 63, y: 17, role: 'guard-captain', sprite: 'swordsman-idle', frame: 2, scale: 1.18, markerColor: 0xffbcbc },
-  { x: 70, y: 17, role: 'healer', sprite: 'plant1-idle', frame: 0, scale: 0.94, markerColor: 0xaff3c2 },
-  { x: 70, y: 14, role: 'pet-keeper', sprite: 'slime-idle', frame: 0, scale: 0.72, markerColor: 0x9ef0f0 },
+  { x: 58, y: 12, role: 'blacksmith-stall', sprite: 'swordsman-idle', frame: 0, scale: 1.18, markerColor: 0xf1ba84 },
+  { x: 63, y: 12, role: 'merchant-stall', sprite: 'vampire1-idle', frame: 2, scale: 1.12, markerColor: 0xf5d483 },
+  { x: 69, y: 12, role: 'provisions-stall', sprite: 'vampire1-idle', frame: 4, scale: 1.12, markerColor: 0x9dd7ff },
+  { x: 57, y: 10, role: 'house-elder', sprite: 'vampire1-idle', frame: 1, scale: 1.08, markerColor: 0xb7f2a5 },
+  { x: 64, y: 10, role: 'scribe', sprite: 'swordsman-idle', frame: 1, scale: 1.16, markerColor: 0xd5c8ff },
+  { x: 72, y: 10, role: 'gate-watch', sprite: 'swordsman-idle', frame: 3, scale: 1.18, markerColor: 0xff9b9b },
+  { x: 57, y: 16, role: 'inn-host', sprite: 'vampire1-idle', frame: 0, scale: 1.08, markerColor: 0xbde0ff },
+  { x: 64, y: 16, role: 'guard-captain', sprite: 'swordsman-idle', frame: 2, scale: 1.18, markerColor: 0xffbcbc },
+  { x: 71, y: 16, role: 'healer', sprite: 'plant1-idle', frame: 0, scale: 0.94, markerColor: 0xaff3c2 },
+  { x: 66, y: 15, role: 'pet-keeper', sprite: 'slime-idle', frame: 0, scale: 0.72, markerColor: 0x9ef0f0 },
   { x: 66, y: 29, role: 'shrine-keeper', sprite: 'plant1-idle', frame: 1, scale: 0.94, markerColor: 0xb8ffa8 },
 ];
 
-const HOUSE_BLOCKS = [
-  { x: 55, y: 7, w: 3, h: 2 },
-  { x: 64, y: 7, w: 5, h: 3 },
-  { x: 72, y: 7, w: 3, h: 2 },
-  { x: 55, y: 18, w: 3, h: 2 },
+const STRUCTURE_BLOCKS = [
+  { x: 55, y: 8, w: 3, h: 2 },
+  { x: 62, y: 7, w: 5, h: 3 },
+  { x: 71, y: 8, w: 3, h: 2 },
+  { x: 55, y: 17, w: 3, h: 2 },
   { x: 63, y: 18, w: 3, h: 2 },
-  { x: 71, y: 18, w: 3, h: 2 },
-  { x: 59, y: 12, w: 2, h: 1 },
-  { x: 68, y: 13, w: 2, h: 1 },
+  { x: 71, y: 17, w: 3, h: 2 },
+];
+
+const OBJECT_COLLISION_RECTS = [
+  { x: 56, y: 8, width: 92, height: 32, offsetX: 0, offsetY: 24 },
+  { x: 64, y: 7, width: 178, height: 76, offsetX: 0, offsetY: 38 },
+  { x: 72, y: 8, width: 92, height: 32, offsetX: 0, offsetY: 24 },
+  { x: 56, y: 17, width: 92, height: 34, offsetX: 0, offsetY: 24 },
+  { x: 64, y: 18, width: 84, height: 32, offsetX: 0, offsetY: 22 },
+  { x: 72, y: 17, width: 92, height: 34, offsetX: 0, offsetY: 24 },
+  { x: 59, y: 13, width: 62, height: 26, offsetX: 0, offsetY: 14 },
+  { x: 69, y: 13, width: 62, height: 26, offsetX: 0, offsetY: 14 },
+  { x: 62, y: 14, width: 28, height: 22, offsetX: 0, offsetY: 12 },
+  { x: 66, y: 14, width: 34, height: 24, offsetX: 0, offsetY: 12 },
 ];
 
 function createGrid(defaultTile = GROUND_FIELD) {
@@ -319,7 +336,7 @@ function buildBlockedGrid(groundGrid) {
   fillRect(blocked, 0, 0, 1, ROWS, true);
   fillRect(blocked, COLS - 1, 0, 1, ROWS, true);
 
-  for (const block of HOUSE_BLOCKS) {
+  for (const block of STRUCTURE_BLOCKS) {
     fillRect(blocked, block.x, block.y, block.w, block.h, true);
   }
 
@@ -350,12 +367,12 @@ function createGroundGrid() {
   carveRect(ground, TOWN_RECT.x, TOWN_RECT.y, TOWN_RECT.w, TOWN_RECT.h, GROUND_TOWN);
 
   // Structured town streets and market plaza for cleaner organization.
-  carveRect(ground, 56, 10, 16, 2, GROUND_PATH);
-  carveRect(ground, 56, 16, 16, 2, GROUND_PATH);
-  carveRect(ground, 59, 8, 2, 12, GROUND_PATH);
-  carveRect(ground, 66, 8, 2, 12, GROUND_PATH);
-  carveRect(ground, 60, 12, 7, 3, GROUND_PATH);
-  carveRect(ground, 62, 10, 7, 3, GROUND_PATH);
+  carveRect(ground, 55, 10, 19, 2, GROUND_PATH);
+  carveRect(ground, 55, 15, 19, 2, GROUND_PATH);
+  carveRect(ground, 59, 9, 2, 11, GROUND_PATH);
+  carveRect(ground, 67, 9, 2, 11, GROUND_PATH);
+  carveRect(ground, 60, 12, 9, 3, GROUND_PATH);
+  carveRect(ground, 62, 10, 5, 8, GROUND_PATH);
   carveRect(ground, 63, 19, 3, 9, GROUND_PATH);
   carveRect(ground, 66, 26, 5, 9, GROUND_PATH);
   carveRect(ground, 64, 29, 9, 5, GROUND_PATH);
@@ -491,6 +508,12 @@ export function createOverworldLayout() {
     dungeonEntryZoneSize: { width: TILE_SIZE * 5, height: TILE_SIZE * 5 },
     ground,
     blocked,
+    collisionRects: OBJECT_COLLISION_RECTS.map((rect) => ({
+      x: rect.x * TILE_SIZE + TILE_SIZE / 2 + (rect.offsetX ?? 0),
+      y: rect.y * TILE_SIZE + TILE_SIZE / 2 + (rect.offsetY ?? 0),
+      width: rect.width,
+      height: rect.height,
+    })),
     decorItems,
     decorClusters: BASE_DECOR_CLUSTERS,
     ambientItems,
