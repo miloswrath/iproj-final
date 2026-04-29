@@ -484,15 +484,19 @@ export class DungeonScene extends Phaser.Scene {
     const total = this.getDungeonPoolSize();
     this.layoutLabel.setText(`Dungeon ${dungeonNumber}/${total}: ${layoutName} [${layoutId}]`);
 
-    if (this.layoutState.encounterCompleted) {
-      this.statusLabel.setText('Dungeon cleared: return to overworld.');
+    if (this.isDungeonExitUnlocked()) {
+      this.statusLabel.setText('Dungeon cleared: use the spawn portal to return.');
       return;
     }
 
     const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
     const totalEnemies = this.layoutState.enemyCount ?? 0;
+    const openedChests = this.getOpenedChestCount();
+    const totalChests = this.getChestCount();
     const progressionLevel = getPlaytestLevel();
-    this.statusLabel.setText(`Level ${progressionLevel} dungeon | Roaming enemies: ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} active.`);
+    this.statusLabel.setText(
+      `Level ${progressionLevel} dungeon | Enemies ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} | Chests ${openedChests}/${totalChests}`,
+    );
   }
 
   setDungeonDebugHudVisible(visible) {
@@ -1342,6 +1346,7 @@ export class DungeonScene extends Phaser.Scene {
     if (this.chestRewardLabel) {
       this.chestRewardLabel.setText(`Latest chest reward: ${rewardResult.summaryText}`);
     }
+    this.updateEncounterUi();
   }
 
   updateExitPortalInteraction() {
@@ -1356,14 +1361,43 @@ export class DungeonScene extends Phaser.Scene {
       this.exitPortalCenter.y,
     );
     const nearPortal = distance <= EXIT_PORTAL_INTERACT_DISTANCE;
+    const exitUnlocked = this.isDungeonExitUnlocked();
     this.exitPortalPrompt?.setVisible(nearPortal);
+    this.exitPortalPrompt?.setText(exitUnlocked ? 'Press E to exit dungeon' : 'Clear enemies and chests to unlock exit');
 
     if (!nearPortal || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       return false;
     }
 
+    if (!exitUnlocked) {
+      this.statusLabel?.setText(this.getExitLockedText());
+      return true;
+    }
+
     this.returnToOverworld();
     return true;
+  }
+
+  isDungeonExitUnlocked() {
+    return this.layoutState.encounterCompleted && this.areAllChestsOpened();
+  }
+
+  areAllChestsOpened() {
+    return (this.layoutState.chests ?? []).every((chest) => chest.opened === true);
+  }
+
+  getChestCount() {
+    return (this.layoutState.chests ?? []).length;
+  }
+
+  getOpenedChestCount() {
+    return (this.layoutState.chests ?? []).filter((chest) => chest.opened === true).length;
+  }
+
+  getExitLockedText() {
+    const defeated = this.layoutState.defeatedEnemyIds?.length ?? 0;
+    const totalEnemies = this.layoutState.enemyCount ?? 0;
+    return `Exit locked: clear enemies ${Math.max(0, totalEnemies - defeated)}/${totalEnemies} and chests ${this.getOpenedChestCount()}/${this.getChestCount()}.`;
   }
 
   getNearbyClosedChest() {
@@ -1656,6 +1690,11 @@ export class DungeonScene extends Phaser.Scene {
 
   returnToOverworld() {
     if (this.returning) {
+      return;
+    }
+
+    if (!this.isDungeonExitUnlocked()) {
+      this.statusLabel?.setText(this.getExitLockedText());
       return;
     }
 

@@ -294,7 +294,8 @@ export function claimChestRewards(chest, dungeonId = 'generated') {
 }
 
 export function recordDungeonClear(layoutState) {
-  if (!layoutState?.encounterCompleted || layoutState.clearRecorded) {
+  const allChestsOpened = (layoutState?.chests ?? []).every((chest) => chest.opened === true);
+  if (!layoutState?.encounterCompleted || !allChestsOpened || layoutState.clearRecorded) {
     return false;
   }
 
