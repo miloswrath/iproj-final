@@ -1,5 +1,16 @@
 const SSE_URL = '/api/v1/events';
 
+let _lastQuestStartPayload = null;
+let _lastQuestCompletePayload = null;
+
+export function getLastQuestStartPayload() {
+  return _lastQuestStartPayload;
+}
+
+export function getLastQuestCompletePayload() {
+  return _lastQuestCompletePayload;
+}
+
 export class QuestEventStream {
   constructor() {
     this.startHandlers = new Set();
@@ -20,10 +31,14 @@ export class QuestEventStream {
       return;
     }
     this.eventSource.addEventListener('quest_start', (event) => {
-      this.dispatch(this.startHandlers, event);
+      this.dispatch(this.startHandlers, event, (payload) => {
+        _lastQuestStartPayload = payload;
+      });
     });
     this.eventSource.addEventListener('quest_complete', (event) => {
-      this.dispatch(this.completeHandlers, event);
+      this.dispatch(this.completeHandlers, event, (payload) => {
+        _lastQuestCompletePayload = payload;
+      });
     });
     this.eventSource.addEventListener('open', () => {
       console.log('[questEvents] connected');
@@ -34,8 +49,7 @@ export class QuestEventStream {
     });
   }
 
-  dispatch(handlers, messageEvent) {
-    if (!handlers.size) return;
+  dispatch(handlers, messageEvent, onParsed) {
     let payload = null;
     try {
       payload = JSON.parse(messageEvent.data);
@@ -43,6 +57,8 @@ export class QuestEventStream {
       console.warn('[questEvents] failed to parse event data:', err);
       return;
     }
+    if (onParsed) onParsed(payload);
+    if (!handlers.size) return;
     for (const handler of handlers) {
       try {
         handler(payload);

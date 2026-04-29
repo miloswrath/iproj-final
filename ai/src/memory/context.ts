@@ -3,7 +3,8 @@ import type { CharacterMemory, PlayerSummary } from "../types.js";
 export function buildEnrichedSystemPrompt(
   basePrompt: string,
   characterMemory: CharacterMemory,
-  playerSummary: PlayerSummary
+  playerSummary: PlayerSummary,
+  recentCompletedQuestIds: string[] = []
 ): string {
   const { promptSummary, relationship, archetype, flags, progression, keyMemories } = characterMemory;
 
@@ -42,5 +43,9 @@ ${JSON.stringify(
 )}
 \`\`\``;
 
-  return `${basePrompt}\n${relationshipBlock}\n${playerBlock}\n${memoryJsonBlock}`;
+  const questHistoryBlock = recentCompletedQuestIds.length > 0
+    ? `\n## Recent Quest History\n\nThe player has completed these quests with you:\n${recentCompletedQuestIds.map((id) => `- ${id}`).join("\n")}\n\nReference relevant quest outcomes naturally in conversation when appropriate. Do not force the topic, but acknowledge prior shared history if the player brings it up.`
+    : "";
+
+  return `${basePrompt}\n${relationshipBlock}\n${playerBlock}\n${memoryJsonBlock}${questHistoryBlock}`;
 }

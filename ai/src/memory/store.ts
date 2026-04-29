@@ -5,12 +5,14 @@ import type {
   CharacterMemory,
   PlayerProfile,
   PlayerSummary,
+  QuestRecord,
 } from "../types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const MEMORY_DIR = path.resolve(__dirname, "../../memory");
 const CHARACTERS_DIR = path.join(MEMORY_DIR, "characters");
 const PROCESSED_COMPLETIONS_PATH = path.join(MEMORY_DIR, "processed-completions.json");
+const QUESTS_PATH = path.join(MEMORY_DIR, "quests.json");
 
 export async function ensureMemoryDirs(): Promise<void> {
   await fs.mkdir(CHARACTERS_DIR, { recursive: true });
@@ -167,4 +169,45 @@ export async function markCompletionProcessed(eventKey: string): Promise<void> {
     processed.push(eventKey);
     await writeJsonAtomic(PROCESSED_COMPLETIONS_PATH, processed);
   }
+}
+
+// ─── Quest Record Persistence ─────────────────────────────────────────────────
+
+export async function loadQuestRecords(): Promise<QuestRecord[]> {
+  return (await readJson<QuestRecord[]>(QUESTS_PATH)) ?? [];
+}
+
+export async function saveQuestRecord(record: QuestRecord): Promise<void> {
+  const records = await loadQuestRecords();
+  const idx = records.findIndex((r) => r.questId === record.questId);
+  if (idx >= 0) {
+    records[idx] = record;
+  } else {
+    records.push(record);
+  }
+  await writeJsonAtomic(QUESTS_PATH, records);
+}
+
+export async function findQuestRecord(questId: string): Promise<QuestRecord | null> {
+  const records = await loadQuestRecords();
+  return records.find((r) => r.questId === questId) ?? null;
+}
+
+export async function findActiveQuest(): Promise<QuestRecord | null> {
+  const records = await loadQuestRecords();
+  return records.find((r) => r.status === "active") ?? null;
+}
+
+export async function getAllQuestTitles(): Promise<Set<string>> {
+  const records = await loadQuestRecords();
+  return new Set(records.map((r) => r.title.toLowerCase()));
+}
+
+export async function getCompletedQuestIds(characterName: string, limit = 5): Promise<string[]> {
+  const records = await loadQuestRecords();
+  return records
+    .filter((r) => r.character === characterName && (r.status === "completed" || r.status === "failed" || r.status === "abandoned"))
+    .sort((a, b) => (b.completedAt ?? b.acceptedAt).localeCompare(a.completedAt ?? a.acceptedAt))
+    .slice(0, limit)
+    .map((r) => r.questId);
 }

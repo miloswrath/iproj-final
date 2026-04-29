@@ -94,7 +94,7 @@ export async function detectQuestOffer(
   questLevel: number,
   offerWindow?: { assistantResponseCount: number; firstQuestOfferTurn: number | null },
   classifyFn: (text: string) => Promise<{ offered: boolean; questSummary: string }> = classifyQuestOffer
-): Promise<{ offered: boolean; questId: string; blockedReason?: "already-offered" | "too-early" | "window-closed" }> {
+): Promise<{ offered: boolean; questId: string; questTitle: string; blockedReason?: "already-offered" | "too-early" | "window-closed" }> {
   if (offerWindow) {
     const gate = evaluateQuestOfferWindow(
       offerWindow.assistantResponseCount,
@@ -102,7 +102,7 @@ export async function detectQuestOffer(
     );
 
     if (!gate.allowed) {
-      return { offered: false, questId: "", blockedReason: gate.reason };
+      return { offered: false, questId: "", questTitle: "", blockedReason: gate.reason };
     }
   }
 
@@ -110,19 +110,57 @@ export async function detectQuestOffer(
 
   // Only call the LLM if the rule fired (avoid an extra round-trip every turn)
   if (!ruleFired) {
-    return { offered: false, questId: "" };
+    return { offered: false, questId: "", questTitle: "" };
   }
 
   const { offered, questSummary } = await classifyFn(npcText);
 
   if (!offered) {
-    return { offered: false, questId: "" };
+    return { offered: false, questId: "", questTitle: "" };
   }
 
   const slug = questSummary.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || `q${questLevel}`;
   const questId = `${characterName}_L${questLevel}_${slug}`;
+  const questTitle = slug.split("-").filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
-  return { offered: true, questId };
+  return { offered: true, questId, questTitle };
+}
+
+export function enforceUniqueQuestTitle(baseTitle: string, existingTitles: Set<string>): string {
+  if (!existingTitles.has(baseTitle.toLowerCase())) return baseTitle;
+  const suffixes = ["II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+  for (const suffix of suffixes) {
+    const candidate = `${baseTitle} ${suffix}`;
+    if (!existingTitles.has(candidate.toLowerCase())) return candidate;
+  }
+  return `${baseTitle} ${Date.now()}`;
+}
+
+export async function generateQuestLore(
+  questTitle: string,
+  npcText: string,
+  characterName: string,
+  loreFn: (prompt: string) => Promise<string> = async (prompt) => {
+    const openai = new OpenAI({ baseURL: "http://localhost:1234/v1", apiKey: "lm-studio", fetch: ((url: any, init: any) => globalThis.fetch(url, init)) as never });
+    const completion = await openai.chat.completions.create({
+      model: "local-model",
+      messages: [{ role: "user", content: prompt }],
+    });
+    return completion.choices[0]?.message?.content?.trim() ?? "";
+  }
+): Promise<string | null> {
+  const prompt = `You are writing brief in-world lore for a fantasy game.
+
+Quest title: "${questTitle}"
+NPC (${characterName}) said: "${npcText.slice(0, 300)}"
+
+Write 1-2 evocative sentences of in-world lore flavor for this quest. Be atmospheric and specific. Do not repeat the title verbatim. Output only the lore text, nothing else.`;
+  try {
+    const lore = await loreFn(prompt);
+    return lore.length > 10 ? lore.slice(0, 300) : null;
+  } catch {
+    return null;
+  }
 }
 
 const ACCEPTANCE_KEYWORDS = [

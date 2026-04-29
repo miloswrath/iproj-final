@@ -11,7 +11,11 @@ import {
   getPlaytestInventoryState,
   getPlaytestProgressionSummary,
   recordDungeonClear,
+  getQuestRunState,
+  advanceQuestRunFloor,
+  recordQuestFloorChestOpened,
 } from '../playtestProgression';
+import { recheckFloorObjectives, reportQuestComplete } from '../services/questRunClient';
 
 const TILE_SIZE = 40;
 const TILE_SCALE = TILE_SIZE / 16;
@@ -203,6 +207,14 @@ export class DungeonScene extends Phaser.Scene {
     this.returnY = data.returnY ?? 120;
     this.completionStatus = data.completionStatus ?? 'incomplete';
     this.returning = false;
+    this.questPortalZone = null;
+    this.questPortalVisuals = [];
+    this.questFloorGatePassed = false;
+
+    // Quest run mode: pick floor from run state
+    const questRunState = getQuestRunState();
+    this.questRunMode = questRunState?.isActive === true;
+    this.questRunState = questRunState;
 
     this.generateKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.qKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
@@ -217,7 +229,12 @@ export class DungeonScene extends Phaser.Scene {
     this.dungeonNumberBufferTimer = null;
     this.combatStarting = false;
 
-    this.layoutState = data?.layoutState ? data.layoutState : this.pickDungeonLayoutFromPool(data?.dungeonIndex);
+    if (this.questRunMode && questRunState) {
+      const floorId = questRunState.floorIds[questRunState.currentFloorIndex];
+      this.layoutState = data?.layoutState ?? this.pickDungeonLayoutById(floorId) ?? this.pickDungeonLayoutFromPool(data?.dungeonIndex);
+    } else {
+      this.layoutState = data?.layoutState ? data.layoutState : this.pickDungeonLayoutFromPool(data?.dungeonIndex);
+    }
     this.tileTheme = this.layoutState.tileTheme ?? 'classic';
     this.layoutSeed = this.computeLayoutSeed(this.layoutState.id ?? this.layoutState.name ?? 'dungeon');
     this.visualProfile = this.getVisualProfile(this.layoutState);
@@ -253,6 +270,10 @@ export class DungeonScene extends Phaser.Scene {
       subtitle: 'I / Tab toggle | Arrow keys browse | Inventory pauses movement only',
     });
     this.createChestUi();
+
+    if (this.questRunMode) {
+      this.checkFloorCompletionGate();
+    }
   }
 
   createBackground() {
@@ -1141,6 +1162,10 @@ export class DungeonScene extends Phaser.Scene {
 
     this.updateChestInteraction();
 
+    if (this.questRunMode) {
+      this.updateQuestPortalInteraction();
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.generateKey)) {
       this.switchDungeonByOffset(1);
       return;
@@ -1171,9 +1196,11 @@ export class DungeonScene extends Phaser.Scene {
 
   updateChestInteraction() {
     const nearbyChest = this.getNearbyClosedChest();
-    this.chestPrompt?.setVisible(Boolean(nearbyChest));
+    // In quest portal mode, E is used for portal interaction — only show chest prompt when not at portal
+    const atPortal = this.questPortalZone && this.physics.overlap(this.player, this.questPortalZone);
+    this.chestPrompt?.setVisible(Boolean(nearbyChest) && !atPortal);
 
-    if (!nearbyChest || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+    if (!nearbyChest || atPortal || !Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       return;
     }
 
@@ -1186,6 +1213,11 @@ export class DungeonScene extends Phaser.Scene {
     this.layoutState.lastChestRewardText = rewardResult.summaryText;
     if (this.chestRewardLabel) {
       this.chestRewardLabel.setText(`Latest chest reward: ${rewardResult.summaryText}`);
+    }
+
+    if (this.questRunMode) {
+      recordQuestFloorChestOpened();
+      this.checkFloorCompletionGate();
     }
   }
 
@@ -1451,6 +1483,131 @@ export class DungeonScene extends Phaser.Scene {
         rewards: chest.rewards.map((reward) => ({ ...reward })),
       })),
     };
+  }
+
+  // ─── Quest Run Floor Gate ────────────────────────────────────────────────────
+
+  checkFloorCompletionGate() {
+    if (!this.questRunMode || this.questFloorGatePassed) return;
+    const check = recheckFloorObjectives(this.layoutState);
+    if (check.complete) {
+      this.questFloorGatePassed = true;
+      this.spawnQuestProgressionPortal();
+    }
+  }
+
+  spawnQuestProgressionPortal() {
+    // Place portal at the center of the room farthest from spawn
+    const rooms = this.layoutState.rooms ?? [];
+    const spawn = this.layoutState.spawnCell;
+    let farthestRoom = rooms[0] ?? null;
+    let maxDist = -1;
+    for (const room of rooms) {
+      const cx = room.x + room.w / 2;
+      const cy = room.y + room.h / 2;
+      const dist = Math.abs(cx - spawn.x) + Math.abs(cy - spawn.y);
+      if (dist > maxDist) { maxDist = dist; farthestRoom = room; }
+    }
+
+    const portalCell = farthestRoom
+      ? { x: Math.floor(farthestRoom.x + farthestRoom.w / 2), y: Math.floor(farthestRoom.y + farthestRoom.h / 2) }
+      : spawn;
+    const portalWorld = this.cellToWorld(portalCell.x, portalCell.y);
+
+    const runState = this.questRunState;
+    const isLastFloor = !runState || runState.currentFloorIndex >= 2;
+    const label = isLastFloor ? 'EXIT' : `FLOOR ${(runState?.currentFloorIndex ?? 0) + 2}`;
+    const portalColor = isLastFloor ? 0xffd36f : 0x79c6e7;
+
+    // Draw portal visuals
+    const glow = this.add.ellipse(portalWorld.x, portalWorld.y, 72, 72, portalColor, 0.18).setDepth(500);
+    const ring = this.add.ellipse(portalWorld.x, portalWorld.y, 54, 54, portalColor, 0).setDepth(501).setStrokeStyle(3, portalColor, 0.9);
+    const inner = this.add.ellipse(portalWorld.x, portalWorld.y, 30, 30, portalColor, 0.55).setDepth(502);
+    const text = this.add.text(portalWorld.x, portalWorld.y - 40, `[ E ] ${label}`, {
+      fontFamily: 'monospace', fontSize: '13px', color: '#fff7cc',
+      backgroundColor: '#1a1400cc', padding: { x: 5, y: 2 },
+    }).setOrigin(0.5).setDepth(503);
+
+    this.questPortalVisuals = [glow, ring, inner, text];
+
+    this.tweens.add({ targets: [glow, inner], alpha: { from: 0.12, to: 0.45 }, duration: 700, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+
+    // Portal interaction zone
+    this.questPortalZone = this.add.zone(portalWorld.x, portalWorld.y, 48, 48);
+    this.physics.add.existing(this.questPortalZone, true);
+
+    this.questPortalInteractKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+  }
+
+  updateQuestPortalInteraction() {
+    if (!this.questPortalZone || !this.questFloorGatePassed) return;
+    const inZone = this.physics.overlap(this.player, this.questPortalZone);
+    const textEl = this.questPortalVisuals[3];
+    if (textEl) textEl.setVisible(inZone);
+
+    if (inZone && Phaser.Input.Keyboard.JustDown(this.questPortalInteractKey ?? this.interactKey)) {
+      this.enterQuestPortal();
+    }
+  }
+
+  enterQuestPortal() {
+    if (this.returning) return;
+    this.returning = true;
+
+    const runState = this.questRunState;
+    const isLastFloor = !runState || runState.currentFloorIndex >= 2;
+
+    if (isLastFloor) {
+      this.completeQuestRun();
+    } else {
+      advanceQuestRunFloor();
+      this.scene.start('dungeon', {
+        returnX: this.returnX,
+        returnY: this.returnY,
+      });
+    }
+  }
+
+  completeQuestRun() {
+    const runState = this.questRunState;
+    recordDungeonClear(this.layoutState);
+
+    const runSummary = {
+      floorsCleared: 3,
+      totalEnemiesDefeated: runState?.totalEnemiesDefeated ?? (this.layoutState.defeatedEnemyIds?.length ?? 0),
+      totalChestsOpened: runState?.totalChestsOpened ?? (this.layoutState.chests?.filter((c) => c.opened).length ?? 0),
+      completedAt: new Date().toISOString(),
+    };
+
+    if (runState?.questId && runState?.character) {
+      reportQuestComplete({
+        questId: runState.questId,
+        character: runState.character,
+        outcome: 'success',
+        rewardReceived: true,
+        playerLevel: 1,
+        runSummary,
+      }).catch((err) => console.error('[dungeon] quest complete report failed:', err));
+    }
+
+    this.scene.start('overworld', {
+      spawnX: this.returnX,
+      spawnY: this.returnY,
+      dungeonCompletionStatus: 'complete',
+      rewardSummaryText: this.layoutState.lastChestRewardText ?? '',
+      questCompleted: true,
+    });
+  }
+
+  pickDungeonLayoutById(id) {
+    if (!id) return null;
+    if (dungeonLayoutPool.length === 0) {
+      dungeonLayoutPool = this.buildDungeonPool();
+    }
+    const layout = dungeonLayoutPool.find((l) => l.id === id);
+    if (!layout) return null;
+    const idx = dungeonLayoutPool.indexOf(layout);
+    return this.cloneLayoutState(layout, idx);
   }
 
   returnToOverworld() {

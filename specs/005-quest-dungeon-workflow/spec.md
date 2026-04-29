@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[005-quest-dungeon-workflow]`  
 **Created**: 2026-04-28  
-**Status**: Draft  
+**Status**: Active  
 **Input**: User description: "Initialize new feature spec using @docs/feat/FEATURE-NPC_2.md"
 
 ## User Scenarios & Testing *(mandatory)*

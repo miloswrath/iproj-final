@@ -8,6 +8,7 @@ import { register as registerConversation } from "./routes/conversation.js";
 import { register as registerEvents } from "./routes/events.js";
 import { register as registerQuestNotifications } from "./routes/questNotifications.js";
 import { register as registerQuestCompletion } from "./routes/questCompletion.js";
+import { register as registerQuestCodex } from "./routes/questCodex.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = path.resolve(__dirname, "../../docs/prompts");
@@ -151,6 +152,7 @@ export function createServer(): http.Server {
   registerEvents(server);
   registerQuestNotifications(server);
   registerQuestCompletion(server);
+  registerQuestCodex(server);
 
   return server;
 }
