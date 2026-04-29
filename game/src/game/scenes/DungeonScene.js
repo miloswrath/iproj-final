@@ -51,8 +51,9 @@ const FIRE_FRAMES_PER_VARIANT = 6;
 const FALLBACK_DUNGEON_POOL_SIZE = 3;
 const ACTIVE_CURATED_DUNGEON_COUNT = 5;
 const ENEMY_LINE_OF_SIGHT_CELLS = 8;
-const ENEMY_CHASE_SPEED = 120;
-const ENEMY_PATH_RECALC_MS = 260;
+const ENEMY_CHASE_SPEED = 150;
+const ENEMY_PATH_RECALC_MS = 220;
+const ENEMY_BURST_MIN_DISTANCE = 80;
 const ENEMY_COUNT_MIN = 2;
 const ENEMY_COUNT_MAX = 4;
 const CHEST_INTERACT_DISTANCE = 34;
@@ -94,6 +95,33 @@ const ENEMY_TYPES = [
   { name: 'Spore Plant', maxHp: 28, attack: 7, spriteKey: 'plant1-idle', scale: 1.05 },
   { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle', scale: 1.0 },
 ];
+
+const ENEMY_CHASE_PROFILES = {
+  'slime-idle': {
+    speed: 142,
+    burstSpeed: 270,
+    burstDuration: 330,
+    burstCooldown: 1250,
+    burstJitter: 450,
+    burstKind: 'leap',
+  },
+  'plant1-idle': {
+    speed: 132,
+    burstSpeed: 0,
+    burstDuration: 0,
+    burstCooldown: 0,
+    burstJitter: 0,
+    burstKind: null,
+  },
+  'vampire1-idle': {
+    speed: 168,
+    burstSpeed: 330,
+    burstDuration: 240,
+    burstCooldown: 1050,
+    burstJitter: 350,
+    burstKind: 'dash',
+  },
+};
 
 const DUNGEON_DEPTH_TUNING = [
   { hpBonus: 0, attackBonus: 0 },
@@ -1118,6 +1146,9 @@ export class DungeonScene extends Phaser.Scene {
       enemy.pathCells = [];
       enemy.pathTargetKey = null;
       enemy.nextPathRefreshAt = 0;
+      enemy.bursting = false;
+      enemy.burstUntil = 0;
+      enemy.nextBurstAt = 0;
       enemy.body.setSize(enemy.width * 0.45, enemy.height * 0.55);
       this.playEnemyIdle(enemy);
       this.enemies.add(enemy);
@@ -1188,6 +1219,9 @@ export class DungeonScene extends Phaser.Scene {
     enemy.pathCells = [];
     enemy.pathTargetKey = null;
     enemy.nextPathRefreshAt = 0;
+    enemy.bursting = false;
+    enemy.burstUntil = 0;
+    enemy.nextBurstAt = 0;
     enemy.setVelocity(0, 0);
     enemy.clearTint();
     enemy.setAlpha(1);
@@ -1465,6 +1499,7 @@ export class DungeonScene extends Phaser.Scene {
 
       if (!enemy.chasing && this.hasLineOfSightToPlayer(enemy)) {
         enemy.chasing = true;
+        enemy.nextBurstAt = this.time.now + 420 + this.getEnemyBurstJitter(enemy);
         this.tweens.add({
           targets: enemy,
           scaleX: enemy.scaleX * 1.12,
@@ -1514,7 +1549,94 @@ export class DungeonScene extends Phaser.Scene {
       nextCenter = this.cellToWorld(nextCell.x, nextCell.y);
     }
 
-    this.physics.moveTo(enemy, nextCenter.x, nextCenter.y, ENEMY_CHASE_SPEED);
+    const speed = this.updateEnemyChaseBurst(enemy, nextCenter);
+    this.physics.moveTo(enemy, nextCenter.x, nextCenter.y, speed);
+  }
+
+  getEnemyChaseProfile(enemy) {
+    return ENEMY_CHASE_PROFILES[enemy.enemyStats?.spriteKey] ?? {
+      speed: ENEMY_CHASE_SPEED,
+      burstSpeed: 0,
+      burstDuration: 0,
+      burstCooldown: 0,
+      burstJitter: 0,
+      burstKind: null,
+    };
+  }
+
+  getEnemyBurstJitter(enemy) {
+    const profile = this.getEnemyChaseProfile(enemy);
+    if (!profile.burstJitter) {
+      return 0;
+    }
+
+    const seed = Math.floor((this.time.now + enemy.x * 7 + enemy.y * 11) % profile.burstJitter);
+    return seed;
+  }
+
+  updateEnemyChaseBurst(enemy, nextCenter) {
+    const profile = this.getEnemyChaseProfile(enemy);
+    const now = this.time.now;
+    const baseSpeed = profile.speed ?? ENEMY_CHASE_SPEED;
+
+    if (enemy.bursting && now < (enemy.burstUntil ?? 0)) {
+      return profile.burstSpeed || baseSpeed;
+    }
+
+    if (enemy.bursting) {
+      enemy.bursting = false;
+      enemy.clearTint();
+      enemy.setAlpha(1);
+      enemy.setScale(enemy.homeScale ?? enemy.enemyStats?.scale ?? 1);
+    }
+
+    if (!profile.burstKind || now < (enemy.nextBurstAt ?? 0)) {
+      return baseSpeed;
+    }
+
+    const distanceToPlayer = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+    const distanceToPathTarget = Phaser.Math.Distance.Between(enemy.x, enemy.y, nextCenter.x, nextCenter.y);
+    if (distanceToPlayer < ENEMY_BURST_MIN_DISTANCE || distanceToPathTarget < 12) {
+      enemy.nextBurstAt = now + 240;
+      return baseSpeed;
+    }
+
+    enemy.bursting = true;
+    enemy.burstUntil = now + profile.burstDuration;
+    enemy.nextBurstAt = enemy.burstUntil + profile.burstCooldown + this.getEnemyBurstJitter(enemy);
+    this.playEnemyBurstWindup(enemy, profile);
+    return profile.burstSpeed || baseSpeed;
+  }
+
+  playEnemyBurstWindup(enemy, profile) {
+    this.tweens.killTweensOf(enemy);
+
+    if (profile.burstKind === 'leap') {
+      enemy.setTint(0xc9ff92);
+      this.tweens.add({
+        targets: enemy,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * 1.26,
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * 0.78,
+        duration: 80,
+        yoyo: true,
+        ease: 'Sine.easeOut',
+      });
+      return;
+    }
+
+    if (profile.burstKind === 'dash') {
+      enemy.setTint(0xff8a8a);
+      this.tweens.add({
+        targets: enemy,
+        alpha: 0.58,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * 1.18,
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * 1.02,
+        duration: 70,
+        yoyo: true,
+        repeat: 1,
+        ease: 'Quad.easeInOut',
+      });
+    }
   }
 
   findPathCells(startCell, targetCell) {

@@ -1201,6 +1201,11 @@ export class CombatScene extends Phaser.Scene {
     const duration = isHeavy ? 210 : 140;
     const hold = isHeavy ? 90 : 45;
 
+    if (isHeavy) {
+      this.runHeavyAttackSequence({ attacker, attackerIdle, outcome, onHit, onComplete });
+      return;
+    }
+
     if (isPlayer) {
       this.playerIdleFloat?.pause();
       attacker.play('combat-player-attack');
@@ -1242,6 +1247,115 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
+  runHeavyAttackSequence({ attacker, attackerIdle, outcome, onHit = null, onComplete = null }) {
+    const startX = this.ui.playerX;
+    const startY = this.ui.playerY;
+    const windupX = startX - 26;
+    const windupY = startY + 10;
+    const slamX = this.ui.enemyX - 58;
+    const slamY = this.ui.enemyY - 42;
+    const baseScale = PLAYER_VISUAL_CONFIG.scale;
+    const chargeColor = outcome.critical ? 0xfff3a0 : 0xffc857;
+    const chargeRing = this.add.circle(startX + 8, startY + 10, 26, chargeColor, 0.14)
+      .setStrokeStyle(4, chargeColor, 0.72)
+      .setDepth(attacker.depth - 1);
+    const groundMark = this.add.ellipse(startX + 4, startY + 42, 82, 18, 0x4a2a12, 0.22)
+      .setDepth(attacker.depth - 2);
+
+    this.playerIdleFloat?.pause();
+    attacker.play('combat-player-attack');
+    attacker.setTint(0xffef9a);
+
+    this.tweens.add({
+      targets: chargeRing,
+      scaleX: 1.8,
+      scaleY: 1.8,
+      alpha: 0,
+      duration: 250,
+      ease: 'Cubic.easeOut',
+      onComplete: () => chargeRing.destroy(),
+    });
+
+    this.tweens.add({
+      targets: groundMark,
+      scaleX: 0.68,
+      alpha: 0.38,
+      duration: 150,
+      yoyo: true,
+      onComplete: () => groundMark.destroy(),
+    });
+
+    this.tweens.add({
+      targets: attacker,
+      x: windupX,
+      y: windupY,
+      angle: -18,
+      scaleX: baseScale * 0.86,
+      scaleY: baseScale * 1.22,
+      duration: 170,
+      ease: 'Back.easeIn',
+      onComplete: () => {
+        this.spawnHeavyAfterimage(attacker, 0.28);
+        this.time.delayedCall(70, () => this.spawnHeavyAfterimage(attacker, 0.18));
+        this.tweens.add({
+          targets: attacker,
+          x: slamX,
+          y: slamY,
+          angle: 32,
+          scaleX: baseScale * 1.32,
+          scaleY: baseScale * 1.08,
+          duration: 190,
+          ease: 'Quad.easeIn',
+          onComplete: () => {
+            if (outcome.hit) {
+              onHit?.();
+              this.spawnAttackEffect('heavy-kitty', true, this.ui.enemyX, this.ui.enemyY, outcome.critical);
+              this.cameras.main.shake(130, outcome.critical ? 0.007 : 0.004);
+            }
+
+            this.tweens.add({
+              targets: attacker,
+              x: startX,
+              y: startY,
+              angle: 0,
+              scaleX: baseScale,
+              scaleY: baseScale,
+              duration: 230,
+              ease: 'Cubic.easeOut',
+              onComplete: () => {
+                attacker.clearTint();
+                attacker.setPosition(startX, startY);
+                attacker.setAngle(0);
+                attacker.setScale(baseScale);
+                attacker.play(attackerIdle);
+                this.playerIdleFloat?.resume();
+                this.time.delayedCall(250, () => onComplete?.());
+              },
+            });
+          },
+        });
+      },
+    });
+  }
+
+  spawnHeavyAfterimage(source, alpha) {
+    const ghost = this.add.sprite(source.x, source.y, source.texture.key, source.frame.name)
+      .setScale(source.scaleX, source.scaleY)
+      .setAngle(source.angle)
+      .setTint(0xffd36b)
+      .setAlpha(alpha)
+      .setDepth(source.depth - 1);
+
+    this.tweens.add({
+      targets: ghost,
+      alpha: 0,
+      x: ghost.x - 18,
+      duration: 180,
+      ease: 'Quad.easeOut',
+      onComplete: () => ghost.destroy(),
+    });
+  }
+
   spawnAttackEffect(style, leftToRight, targetX, targetY, critical = false) {
     if (style === 'heavy-kitty') {
       this.spawnHeavyStrike(targetX, targetY, critical, leftToRight);
@@ -1275,21 +1389,29 @@ export class CombatScene extends Phaser.Scene {
 
   spawnHeavyStrike(x, y, critical = false, leftToRight = true) {
     const color = critical ? 0xfff3a0 : 0xffc857;
-    const impact = this.add.circle(x, y + 6, critical ? 42 : 34, color, 0.24)
-      .setStrokeStyle(5, 0xffffff, 0.8);
-    const shockwave = this.add.ellipse(x, y + 28, critical ? 126 : 104, critical ? 34 : 28, color, 0.2)
-      .setStrokeStyle(4, 0xfff7cf, 0.72);
-    const slam = this.add.rectangle(x - (leftToRight ? 18 : -18), y - 18, 16, 92, color, 0.88)
-      .setAngle(leftToRight ? 38 : -38);
-    const sparkA = this.add.star(x + (leftToRight ? 24 : -24), y - 26, 5, 7, critical ? 24 : 18, 0xffffff, 0.92);
-    const sparkB = this.add.star(x - (leftToRight ? 18 : -18), y + 8, 5, 5, critical ? 18 : 13, color, 0.82);
+    const direction = leftToRight ? 1 : -1;
+    const impact = this.add.circle(x, y + 4, critical ? 54 : 44, color, 0.28)
+      .setStrokeStyle(7, 0xffffff, 0.86);
+    const shockwave = this.add.ellipse(x, y + 34, critical ? 164 : 132, critical ? 42 : 34, color, 0.24)
+      .setStrokeStyle(5, 0xfff7cf, 0.78);
+    const slam = this.add.rectangle(x - direction * 24, y - 20, 22, 122, color, 0.9)
+      .setAngle(direction * 42);
+    const crossSlam = this.add.rectangle(x + direction * 8, y - 6, 12, 94, 0xffffff, 0.72)
+      .setAngle(direction * 58);
+    const sparkA = this.add.star(x + direction * 34, y - 34, 5, 8, critical ? 31 : 24, 0xffffff, 0.94);
+    const sparkB = this.add.star(x - direction * 24, y + 4, 5, 6, critical ? 23 : 17, color, 0.84);
+    const debris = [
+      this.add.rectangle(x - direction * 52, y + 28, 10, 5, 0x6d421d, 0.86).setAngle(-18),
+      this.add.rectangle(x + direction * 46, y + 33, 12, 6, 0x6d421d, 0.76).setAngle(24),
+      this.add.rectangle(x + direction * 10, y + 42, 8, 4, 0x3d2616, 0.68).setAngle(8),
+    ];
 
     this.tweens.add({
       targets: [impact, shockwave],
       alpha: 0,
-      scaleX: 1.7,
-      scaleY: 1.45,
-      duration: 240,
+      scaleX: 2,
+      scaleY: 1.55,
+      duration: 300,
       ease: 'Cubic.easeOut',
       onComplete: () => {
         impact.destroy();
@@ -1298,14 +1420,15 @@ export class CombatScene extends Phaser.Scene {
     });
 
     this.tweens.add({
-      targets: [slam, sparkA, sparkB],
+      targets: [slam, crossSlam, sparkA, sparkB, ...debris],
       alpha: 0,
-      y: '-=18',
-      scaleX: 1.25,
-      scaleY: 1.25,
-      duration: 220,
+      y: '-=24',
+      x: `+=${direction * 12}`,
+      scaleX: 1.32,
+      scaleY: 1.32,
+      duration: 280,
       ease: 'Quad.easeOut',
-      onComplete: () => [slam, sparkA, sparkB].forEach((node) => node.destroy()),
+      onComplete: () => [slam, crossSlam, sparkA, sparkB, ...debris].forEach((node) => node.destroy()),
     });
   }
 
