@@ -38,6 +38,8 @@ export class PreloadScene extends Phaser.Scene {
     this.load.image('overworld-grass-6', assetPaths.overworldGrass6Url);
     this.load.image('overworld-stone-3', assetPaths.overworldStone3Url);
     this.load.image('overworld-box-2', assetPaths.overworldBox2Url);
+    this.load.image('overworld-tower-pad-1', assetPaths.overworldTowerPad1Url);
+    this.load.image('overworld-tower-pad-2', assetPaths.overworldTowerPad2Url);
     this.load.image('overworld-tent-1', assetPaths.overworldTent1Url);
     this.load.image('overworld-tent-2', assetPaths.overworldTent2Url);
     this.load.image('overworld-tent-3', assetPaths.overworldTent3Url);
@@ -133,6 +135,7 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 16,
     });
+    this.load.image('ui-field-tonic-icon', assetPaths.fieldTonicIconUrl);
     this.load.spritesheet('npc-girl-1-idle', assetPaths.npcGirl1IdleUrl, {
       frameWidth: 128,
       frameHeight: 128,

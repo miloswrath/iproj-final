@@ -4,7 +4,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Field Tonic',
     type: 'Consumable',
     description: 'Restore a chunk of HP during combat to stabilize a risky run.',
-    iconFrame: 78,
+    iconTexture: 'ui-field-tonic-icon',
     combat: {
       usable: true,
       effect: {
@@ -25,14 +25,14 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Iron Ore',
     type: 'Upgrade Material',
     description: 'Raw metal stock for future weapon and armor upgrades.',
-    iconFrame: 29,
+    iconFrame: 94,
   },
   crystalShard: {
     id: 'crystal-shard',
     name: 'Crystal Shard',
     type: 'Upgrade Material',
     description: 'Dungeon reward material reserved for upgrades, contracts, or unlock costs.',
-    iconFrame: 77,
+    iconFrame: 97,
   },
 };
 
@@ -43,7 +43,8 @@ export function createInventoryEntry(itemDef, quantity) {
     type: itemDef.type,
     quantity,
     description: itemDef.description,
-    iconFrame: itemDef.iconFrame,
+    iconFrame: itemDef.iconFrame ?? 0,
+    iconTexture: itemDef.iconTexture ?? 'ui-inventory-icons',
     combat: itemDef.combat ?? null,
   };
 }
