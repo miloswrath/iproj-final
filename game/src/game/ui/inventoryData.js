@@ -18,7 +18,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Slime Jelly',
     type: 'Loot',
     description: 'Basic dungeon drop tied to contract turn-ins and early progression loops.',
-    iconFrame: 40,
+    iconTexture: 'ui-slime-jelly-icon',
   },
   ironOre: {
     id: 'iron-ore',
@@ -32,7 +32,7 @@ export const INVENTORY_ITEM_DEFS = {
     name: 'Crystal Shard',
     type: 'Upgrade Material',
     description: 'Dungeon reward material reserved for upgrades, contracts, or unlock costs.',
-    iconFrame: 97,
+    iconTexture: 'ui-crystal-shard-icon',
   },
 };
 

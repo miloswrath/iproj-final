@@ -102,6 +102,14 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    this.load.spritesheet('slime2-idle', assetPaths.slime2IdleUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+    this.load.spritesheet('slime3-idle', assetPaths.slime3IdleUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
     this.load.spritesheet('plant1-idle', assetPaths.plant1IdleUrl, {
       frameWidth: 64,
       frameHeight: 64,
@@ -111,6 +119,14 @@ export class PreloadScene extends Phaser.Scene {
       frameHeight: 64,
     });
     this.load.spritesheet('swordsman-idle', assetPaths.swordsmanIdleUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+    this.load.spritesheet('swordsman2-idle', assetPaths.swordsman2IdleUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+    this.load.spritesheet('swordsman3-idle', assetPaths.swordsman3IdleUrl, {
       frameWidth: 64,
       frameHeight: 64,
     });
@@ -136,6 +152,8 @@ export class PreloadScene extends Phaser.Scene {
       frameHeight: 16,
     });
     this.load.image('ui-field-tonic-icon', assetPaths.fieldTonicIconUrl);
+    this.load.image('ui-slime-jelly-icon', assetPaths.slimeJellyIconUrl);
+    this.load.image('ui-crystal-shard-icon', assetPaths.crystalShardIconUrl);
     this.load.spritesheet('npc-girl-1-idle', assetPaths.npcGirl1IdleUrl, {
       frameWidth: 128,
       frameHeight: 128,

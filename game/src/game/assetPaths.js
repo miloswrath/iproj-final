@@ -39,9 +39,13 @@ import dungeonFireAnimationUrl from '../../../assets/tilesets/dungeon/fire_anima
 import dungeonFireAnimation2Url from '../../../assets/tilesets/dungeon/fire_animation2.png';
 import dungeonTrapAnimationUrl from '../../../assets/tilesets/dungeon/trap_animation.png';
 import slimeIdleUrl from '../../../assets/enemies/slimes/slime1_idle.png';
+import slime2IdleUrl from '../../../assets/enemies/slimes/slime2_idle.png';
+import slime3IdleUrl from '../../../assets/enemies/slimes/slime3_idle.png';
 import plant1IdleUrl from '../../../assets/enemies/plants/plant1_idle.png';
 import vampire1IdleUrl from '../../../assets/enemies/vampires/vampire1_idle.png';
 import swordsmanIdleUrl from '../../../assets/enemies/swordsman/Swordsman_lvl1/Without_shadow/Swordsman_lvl1_Idle_without_shadow.png';
+import swordsman2IdleUrl from '../../../assets/enemies/swordsman/Swordsman_lvl2/Without_shadow/Swordsman_lvl2_Idle_without_shadow.png';
+import swordsman3IdleUrl from '../../../assets/enemies/swordsman/Swordsman_lvl3/Without_shadow/Swordsman_lvl3_Idle_without_shadow.png';
 import swordsmanAttackUrl from '../../../assets/enemies/swordsman/Swordsman_lvl1/Without_shadow/Swordsman_lvl1_attack_without_shadow.png';
 import swordsmanHurtUrl from '../../../assets/enemies/swordsman/Swordsman_lvl1/Without_shadow/Swordsman_lvl1_Hurt_without_shadow.png';
 import undeadGroundTilesUrl from '../../../assets/_source/craftpix-net-695666-free-undead-tileset-top-down-pixel-art/PNG/Ground_rocks.png';
@@ -50,6 +54,8 @@ import inventoryLayoutUrl from '../../../assets/ui/inventory/inventory-layout.pn
 import inventoryFrameTilesUrl from '../../../assets/ui/inventory/inventory-frame-tiles.png';
 import inventoryIconsUrl from '../../../assets/ui/inventory/inventory-icons.png';
 import fieldTonicIconUrl from '../../../assets/ui/inventory/field-tonic-icon.png';
+import slimeJellyIconUrl from '../../../assets/ui/inventory/slime-jelly-icon.png';
+import crystalShardIconUrl from '../../../assets/ui/inventory/crystal-shard-icon.png';
 import npcGirl1IdleUrl from '../../../assets/characters/girl-1/idle.png';
 import npcGirl1WalkUrl from '../../../assets/characters/girl-1/walk.png';
 import npcGirl1DialogueUrl from '../../../assets/characters/girl-1/dialogue.png';
@@ -96,9 +102,13 @@ export const assetPaths = {
   dungeonFireAnimation2Url,
   dungeonTrapAnimationUrl,
   slimeIdleUrl,
+  slime2IdleUrl,
+  slime3IdleUrl,
   plant1IdleUrl,
   vampire1IdleUrl,
   swordsmanIdleUrl,
+  swordsman2IdleUrl,
+  swordsman3IdleUrl,
   swordsmanAttackUrl,
   swordsmanHurtUrl,
   undeadGroundTilesUrl,
@@ -107,6 +117,8 @@ export const assetPaths = {
   inventoryFrameTilesUrl,
   inventoryIconsUrl,
   fieldTonicIconUrl,
+  slimeJellyIconUrl,
+  crystalShardIconUrl,
   npcGirl1IdleUrl,
   npcGirl1WalkUrl,
   npcGirl1DialogueUrl,

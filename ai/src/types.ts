@@ -27,6 +27,7 @@ export type HistoryEntry =
 export interface Session {
   activeCharacter: Character;
   activeMemory: CharacterMemory;
+  authoritativeState?: AuthoritativeState;
   history: HistoryEntry[];
   conversationState: ConversationState;
 }

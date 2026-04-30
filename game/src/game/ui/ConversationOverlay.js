@@ -6,6 +6,7 @@ import {
   startConversation,
 } from '../services/aiClient.js';
 import { getActiveArchetype } from '../npc/npcConfig.js';
+import { getPlaytestLevel } from '../playtestProgression.js';
 
 const OVERLAY_DEPTH = 21000;
 
@@ -341,7 +342,7 @@ export class ConversationOverlay {
     this.awaiting = true;
     this.refresh();
     try {
-      const response = await startConversation(archetype || this.npc?.archetype || 'general');
+      const response = await startConversation(archetype || this.npc?.archetype || 'general', getPlaytestLevel());
       if (this._generation !== gen) return;
       this.sessionId = response.sessionId;
       if (response.greeting) {

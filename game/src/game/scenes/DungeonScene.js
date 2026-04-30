@@ -60,8 +60,9 @@ const ENEMY_LINE_OF_SIGHT_CELLS = 8;
 const ENEMY_CHASE_SPEED = 150;
 const ENEMY_PATH_RECALC_MS = 220;
 const ENEMY_BURST_MIN_DISTANCE = 80;
-const ENEMY_COUNT_MIN = 2;
-const ENEMY_COUNT_MAX = 4;
+const ENEMY_COUNT_MIN = 4;
+const ENEMY_COUNT_MAX = 5;
+const PLAYER_WORLD_SCALE = 0.52;
 const CHEST_INTERACT_DISTANCE = 34;
 const EXIT_PORTAL_INTERACT_DISTANCE = 54;
 
@@ -97,35 +98,99 @@ const UNDEAD_LARGE_GROUPS = {
 };
 
 const ENEMY_TYPES = [
-  { name: 'Green Slime', maxHp: 24, attack: 6, spriteKey: 'slime-idle', scale: 1.05 },
-  { name: 'Spore Plant', maxHp: 28, attack: 7, spriteKey: 'plant1-idle', scale: 1.05 },
-  { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle', scale: 1.0 },
+  { name: 'Green Slime', maxHp: 24, attack: 6, spriteKey: 'slime-idle', scale: 1.35 },
+  { name: 'Frost Slime', maxHp: 22, attack: 7, spriteKey: 'slime2-idle', scale: 1.35 },
+  { name: 'Ember Slime', maxHp: 26, attack: 8, spriteKey: 'slime3-idle', scale: 1.38 },
+  { name: 'Spore Plant', maxHp: 28, attack: 7, spriteKey: 'plant1-idle', scale: 1.38 },
+  { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle', scale: 1.4 },
+  { name: 'Bone Swordsman', maxHp: 30, attack: 8, spriteKey: 'swordsman-idle', scale: 1.42 },
+  { name: 'Iron Duelist', maxHp: 34, attack: 9, spriteKey: 'swordsman2-idle', scale: 1.44 },
+  { name: 'Rift Champion', maxHp: 38, attack: 10, spriteKey: 'swordsman3-idle', scale: 1.48 },
+];
+
+const ENEMY_SPAWN_ORDER = [
+  ENEMY_TYPES[0],
+  ENEMY_TYPES[3],
+  ENEMY_TYPES[4],
+  ENEMY_TYPES[5],
+  ENEMY_TYPES[1],
+  ENEMY_TYPES[6],
+  ENEMY_TYPES[2],
+  ENEMY_TYPES[7],
 ];
 
 const ENEMY_CHASE_PROFILES = {
   'slime-idle': {
-    speed: 142,
-    burstSpeed: 270,
+    speed: 160,
+    burstSpeed: 305,
     burstDuration: 330,
     burstCooldown: 1250,
     burstJitter: 450,
     burstKind: 'leap',
+    chasePattern: 'direct',
+  },
+  'slime2-idle': {
+    speed: 166,
+    burstSpeed: 360,
+    burstDuration: 380,
+    burstCooldown: 1180,
+    burstJitter: 380,
+    burstKind: 'slide',
+    chasePattern: 'zigzag',
+  },
+  'slime3-idle': {
+    speed: 158,
+    burstSpeed: 390,
+    burstDuration: 430,
+    burstCooldown: 1350,
+    burstJitter: 520,
+    burstKind: 'charge',
+    chasePattern: 'direct',
   },
   'plant1-idle': {
-    speed: 132,
-    burstSpeed: 0,
-    burstDuration: 0,
-    burstCooldown: 0,
-    burstJitter: 0,
-    burstKind: null,
+    speed: 142,
+    burstSpeed: 76,
+    burstDuration: 540,
+    burstCooldown: 1250,
+    burstJitter: 420,
+    burstKind: 'root',
+    chasePattern: 'stalk',
   },
   'vampire1-idle': {
-    speed: 168,
-    burstSpeed: 330,
+    speed: 188,
+    burstSpeed: 380,
     burstDuration: 240,
     burstCooldown: 1050,
     burstJitter: 350,
     burstKind: 'dash',
+    chasePattern: 'intercept',
+  },
+  'swordsman-idle': {
+    speed: 174,
+    burstSpeed: 295,
+    burstDuration: 210,
+    burstCooldown: 1180,
+    burstJitter: 420,
+    burstKind: 'lunge',
+    chasePattern: 'direct',
+  },
+  'swordsman2-idle': {
+    speed: 168,
+    burstSpeed: 335,
+    burstDuration: 260,
+    burstCooldown: 1080,
+    burstJitter: 380,
+    burstKind: 'guard-lunge',
+    chasePattern: 'guard-step',
+  },
+  'swordsman3-idle': {
+    speed: 192,
+    burstSpeed: 0,
+    burstDuration: 0,
+    burstCooldown: 980,
+    burstJitter: 340,
+    burstKind: 'blink',
+    chasePattern: 'intercept',
   },
 };
 
@@ -758,7 +823,7 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   spawnPlayer(spawnX, spawnY) {
-    this.player = this.physics.add.sprite(spawnX, spawnY, 'witch-kitty').setScale(0.6);
+    this.player = this.physics.add.sprite(spawnX, spawnY, 'witch-kitty').setScale(PLAYER_WORLD_SCALE);
     this.player.setFrame(0);
     this.player.setCollideWorldBounds(true);
     this.player.body.setSize(this.player.width * 0.5, this.player.height * 0.7);
@@ -1353,7 +1418,7 @@ export class DungeonScene extends Phaser.Scene {
       const cell = enemySpawnCells[index];
       const savedPosition = this.layoutState.enemyPositions?.[enemyId] ?? null;
       const center = savedPosition ?? this.cellToWorld(cell.x, cell.y);
-      const enemyType = ENEMY_TYPES[this.cellHash(cell.x, cell.y, 701 + index) % ENEMY_TYPES.length];
+      const enemyType = this.pickEnemyType(cell, index);
       const enemy = this.physics.add
         .sprite(center.x, center.y, enemyType.spriteKey, 0)
         .setScale(enemyType.scale)
@@ -1389,6 +1454,19 @@ export class DungeonScene extends Phaser.Scene {
     });
     const targetCount = Phaser.Math.Clamp(Math.floor(rooms.length * 0.55), ENEMY_COUNT_MIN, ENEMY_COUNT_MAX);
     const cells = [];
+    const usedKeys = new Set([spawnKey]);
+
+    const tryAddCell = (x, y) => {
+      const key = `${x},${y}`;
+      if (!this.floorCellSet.has(key) || usedKeys.has(key)) {
+        return false;
+      }
+
+      cells.push({ x, y });
+      usedKeys.add(key);
+      this.decorTaken.add(key);
+      return true;
+    };
 
     for (let i = 0; i < rooms.length && cells.length < targetCount; i += 1) {
       const room = rooms[(i + 1) % rooms.length];
@@ -1397,23 +1475,54 @@ export class DungeonScene extends Phaser.Scene {
       const offsetY = (this.cellHash(room.y, room.x, 751 + i) % 3) - 1;
       const x = Phaser.Math.Clamp(center.x + offsetX, room.x + 1, room.x + room.w - 2);
       const y = Phaser.Math.Clamp(center.y + offsetY, room.y + 1, room.y + room.h - 2);
-      const key = `${x},${y}`;
 
-      if (this.floorCellSet.has(key) && !this.decorTaken.has(key) && key !== spawnKey) {
-        cells.push({ x, y });
-        this.decorTaken.add(key);
+      tryAddCell(x, y);
+    }
+
+    const fallbackOffsets = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+      { x: 1, y: 1 },
+      { x: -1, y: -1 },
+    ];
+
+    for (const room of rooms) {
+      if (cells.length >= targetCount) {
+        break;
+      }
+
+      const center = this.roomCenter(room);
+      for (const offset of fallbackOffsets) {
+        const x = Phaser.Math.Clamp(center.x + offset.x, room.x + 1, room.x + room.w - 2);
+        const y = Phaser.Math.Clamp(center.y + offset.y, room.y + 1, room.y + room.h - 2);
+        if (tryAddCell(x, y) && cells.length >= targetCount) {
+          break;
+        }
       }
     }
 
     return cells;
   }
 
+  pickEnemyType(cell, index) {
+    const offset = this.cellHash(this.layoutState.spawnCell.x, this.layoutState.spawnCell.y, 701) % ENEMY_SPAWN_ORDER.length;
+    return ENEMY_SPAWN_ORDER[(offset + index) % ENEMY_SPAWN_ORDER.length];
+  }
+
   playEnemyIdle(enemy) {
     const spriteKey = enemy.enemyStats.spriteKey;
     const animationConfig = {
       'slime-idle': { endFrame: 5, frameRate: 7 },
+      'slime2-idle': { endFrame: 5, frameRate: 7 },
+      'slime3-idle': { endFrame: 5, frameRate: 7 },
       'plant1-idle': { endFrame: 3, frameRate: 6 },
       'vampire1-idle': { endFrame: 3, frameRate: 6 },
+      'swordsman-idle': { endFrame: 11, frameRate: 8 },
+      'swordsman2-idle': { endFrame: 11, frameRate: 8 },
+      'swordsman3-idle': { endFrame: 11, frameRate: 8 },
     };
     const config = animationConfig[spriteKey] ?? animationConfig['slime-idle'];
     const animKey = `${spriteKey}-dungeon-roam`;
@@ -1784,8 +1893,15 @@ export class DungeonScene extends Phaser.Scene {
       nextCenter = this.cellToWorld(nextCell.x, nextCell.y);
     }
 
-    const speed = this.updateEnemyChaseBurst(enemy, nextCenter);
-    this.physics.moveTo(enemy, nextCenter.x, nextCenter.y, speed);
+    const profile = this.getEnemyChaseProfile(enemy);
+    const speed = this.updateEnemyChaseBurst(enemy, nextCenter, profile);
+    if (speed <= 0) {
+      enemy.setVelocity(0, 0);
+      return;
+    }
+
+    const chaseTarget = this.getEnemyChaseTarget(enemy, nextCenter, profile);
+    this.physics.moveTo(enemy, chaseTarget.x, chaseTarget.y, speed);
   }
 
   getEnemyChaseProfile(enemy) {
@@ -1796,7 +1912,55 @@ export class DungeonScene extends Phaser.Scene {
       burstCooldown: 0,
       burstJitter: 0,
       burstKind: null,
+      chasePattern: 'direct',
     };
+  }
+
+  getEnemyChaseTarget(enemy, nextCenter, profile) {
+    const pattern = profile.chasePattern ?? 'direct';
+
+    if (pattern === 'zigzag') {
+      const dx = nextCenter.x - enemy.x;
+      const dy = nextCenter.y - enemy.y;
+      const length = Math.max(1, Math.sqrt((dx * dx) + (dy * dy)));
+      const side = Math.sin((this.time.now / 130) + ((enemy.enemyId?.length ?? 0) * 0.7)) >= 0 ? 1 : -1;
+      const offset = 18 * side;
+      return {
+        x: nextCenter.x + (-dy / length) * offset,
+        y: nextCenter.y + (dx / length) * offset,
+      };
+    }
+
+    if (pattern === 'intercept') {
+      const playerVelocity = this.player.body?.velocity;
+      const leadScale = enemy.enemyStats?.spriteKey === 'swordsman3-idle' ? 0.18 : 0.14;
+      return {
+        x: nextCenter.x + ((playerVelocity?.x ?? 0) * leadScale),
+        y: nextCenter.y + ((playerVelocity?.y ?? 0) * leadScale),
+      };
+    }
+
+    if (pattern === 'guard-step') {
+      const pulse = Math.sin(this.time.now / 180);
+      if (pulse < -0.45) {
+        return {
+          x: enemy.x + ((nextCenter.x - enemy.x) * 0.35),
+          y: enemy.y + ((nextCenter.y - enemy.y) * 0.35),
+        };
+      }
+    }
+
+    if (pattern === 'stalk') {
+      const pulse = Math.sin((this.time.now / 260) + ((enemy.enemyId?.length ?? 0) * 0.4));
+      if (pulse < -0.25) {
+        return {
+          x: enemy.x + ((nextCenter.x - enemy.x) * 0.18),
+          y: enemy.y + ((nextCenter.y - enemy.y) * 0.18),
+        };
+      }
+    }
+
+    return nextCenter;
   }
 
   getEnemyBurstJitter(enemy) {
@@ -1809,8 +1973,7 @@ export class DungeonScene extends Phaser.Scene {
     return seed;
   }
 
-  updateEnemyChaseBurst(enemy, nextCenter) {
-    const profile = this.getEnemyChaseProfile(enemy);
+  updateEnemyChaseBurst(enemy, nextCenter, profile = this.getEnemyChaseProfile(enemy)) {
     const now = this.time.now;
     const baseSpeed = profile.speed ?? ENEMY_CHASE_SPEED;
 
@@ -1822,6 +1985,7 @@ export class DungeonScene extends Phaser.Scene {
       enemy.bursting = false;
       enemy.clearTint();
       enemy.setAlpha(1);
+      enemy.angle = 0;
       enemy.setScale(enemy.homeScale ?? enemy.enemyStats?.scale ?? 1);
     }
 
@@ -1833,6 +1997,14 @@ export class DungeonScene extends Phaser.Scene {
     const distanceToPathTarget = Phaser.Math.Distance.Between(enemy.x, enemy.y, nextCenter.x, nextCenter.y);
     if (distanceToPlayer < ENEMY_BURST_MIN_DISTANCE || distanceToPathTarget < 12) {
       enemy.nextBurstAt = now + 240;
+      return baseSpeed;
+    }
+
+    if (profile.burstKind === 'blink') {
+      enemy.nextBurstAt = now + profile.burstCooldown + this.getEnemyBurstJitter(enemy);
+      this.playEnemyBurstWindup(enemy, profile);
+      enemy.setPosition(nextCenter.x, nextCenter.y);
+      enemy.body?.reset(nextCenter.x, nextCenter.y);
       return baseSpeed;
     }
 
@@ -1859,6 +2031,58 @@ export class DungeonScene extends Phaser.Scene {
       return;
     }
 
+    if (profile.burstKind === 'slide') {
+      enemy.setTint(0x9ee9ff);
+      this.tweens.add({
+        targets: enemy,
+        alpha: 0.78,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * 1.34,
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * 0.72,
+        duration: 90,
+        yoyo: true,
+        repeat: 1,
+        ease: 'Sine.easeInOut',
+      });
+      return;
+    }
+
+    if (profile.burstKind === 'charge') {
+      enemy.setTint(0xff8758);
+      this.tweens.add({
+        targets: enemy,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * 1.42,
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * 0.68,
+        duration: 110,
+        yoyo: true,
+        ease: 'Back.easeOut',
+      });
+      return;
+    }
+
+    if (profile.burstKind === 'root') {
+      enemy.setTint(0x8dff87);
+      const rootPulse = this.add.circle(enemy.x, enemy.y + 8, 16, 0x7bff73, 0.22)
+        .setStrokeStyle(3, 0xc8ff9e, 0.62)
+        .setDepth(enemy.depth - 1);
+      this.tweens.add({
+        targets: rootPulse,
+        alpha: 0,
+        scale: 2.2,
+        duration: 420,
+        ease: 'Quad.easeOut',
+        onComplete: () => rootPulse.destroy(),
+      });
+      this.tweens.add({
+        targets: enemy,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * 0.92,
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * 1.12,
+        duration: 130,
+        yoyo: true,
+        repeat: 1,
+      });
+      return;
+    }
+
     if (profile.burstKind === 'dash') {
       enemy.setTint(0xff8a8a);
       this.tweens.add({
@@ -1870,6 +2094,47 @@ export class DungeonScene extends Phaser.Scene {
         yoyo: true,
         repeat: 1,
         ease: 'Quad.easeInOut',
+      });
+      return;
+    }
+
+    if (profile.burstKind === 'lunge' || profile.burstKind === 'guard-lunge') {
+      enemy.setTint(profile.burstKind === 'guard-lunge' ? 0xcfe3ff : 0xffd36b);
+      this.tweens.add({
+        targets: enemy,
+        scaleX: (enemy.homeScale ?? enemy.scaleX) * (profile.burstKind === 'guard-lunge' ? 1.08 : 1.16),
+        scaleY: (enemy.homeScale ?? enemy.scaleY) * (profile.burstKind === 'guard-lunge' ? 1.08 : 0.96),
+        angle: profile.burstKind === 'guard-lunge' ? 0 : (enemy.flipX ? -7 : 7),
+        duration: profile.burstKind === 'guard-lunge' ? 105 : 70,
+        yoyo: true,
+        repeat: 1,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          enemy.angle = 0;
+        },
+      });
+      return;
+    }
+
+    if (profile.burstKind === 'blink') {
+      const blink = this.add.circle(enemy.x, enemy.y, 24, 0xc59cff, 0.22)
+        .setStrokeStyle(4, 0xf2dcff, 0.7)
+        .setDepth(enemy.depth + 1);
+      enemy.setTint(0xd7a8ff);
+      enemy.setAlpha(0.55);
+      this.tweens.add({
+        targets: blink,
+        alpha: 0,
+        scale: 1.9,
+        duration: 220,
+        ease: 'Quad.easeOut',
+        onComplete: () => blink.destroy(),
+      });
+      this.time.delayedCall(110, () => {
+        if (enemy.active) {
+          enemy.clearTint();
+          enemy.setAlpha(1);
+        }
       });
     }
   }

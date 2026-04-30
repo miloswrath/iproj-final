@@ -1,6 +1,7 @@
 import type {
   Character,
   CharacterMemory,
+  AuthoritativeState,
   ConversationPhase,
   ConversationState,
   HistoryEntry,
@@ -11,11 +12,13 @@ import { defaultCharacterMemory } from "./memory/store.js";
 
 export function createSession(
   character: Character,
-  characterMemory?: CharacterMemory
+  characterMemory?: CharacterMemory,
+  authoritativeState?: AuthoritativeState
 ): Session {
   return {
     activeCharacter: character,
     activeMemory: characterMemory ?? defaultCharacterMemory(),
+    authoritativeState,
     history: [],
     conversationState: {
       phase: "ACTIVE",
