@@ -36,8 +36,11 @@ export class HUDController {
 
   handleQuestEvent(kind, payload) {
     if (!this.scene || !this.scene.scene || !this.scene.scene.isActive()) return;
-    const title = titleFromQuestId(payload?.questId);
-    const bodyLine = formatBodyLine(payload, kind);
+    const title = payload?.questTitle || titleFromQuestId(payload?.questId);
+    let bodyLine = formatBodyLine(payload, kind);
+    if (kind === 'quest_complete' && payload?.memorySyncPending) {
+      bodyLine += ' · sync pending';
+    }
     spawnQuestToast(this.scene, { kind, title, bodyLine });
   }
 

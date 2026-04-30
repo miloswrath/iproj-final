@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { PlayerProfile, QuestCompletionPayload, Session } from "../types.js";
+import type { PlayerProfile, QuestCompletionPayload, QuestRecord, Session } from "../types.js";
 import { extractFeatures } from "../features/extractor.js";
 import {
   completionEventKey,
@@ -7,6 +7,8 @@ import {
   loadAllMemory,
   markCompletionProcessed,
   wasCompletionProcessed,
+  findQuestRecord,
+  saveQuestRecord,
 } from "../memory/store.js";
 import {
   applyQuestOutcomeToCharacterMemory,
@@ -59,7 +61,9 @@ export async function runPostConversationPipeline(session: Session): Promise<voi
 
 export async function runWithNotification(
   session: Session,
-  questId: string
+  questId: string,
+  questTitle: string = questId,
+  lore: string | null = null
 ): Promise<void> {
   await runPostConversationPipeline(session);
 
@@ -68,6 +72,8 @@ export async function runWithNotification(
   await notifyQuestStart({
     character: session.activeCharacter.name,
     questId,
+    questTitle,
+    lore,
     playerState: { level: playerLevel },
     relationshipSnapshot: {
       trust: relationship.trust,
@@ -88,27 +94,60 @@ function validateQuestCompletionPayload(payload: QuestCompletionPayload): boolea
 export async function runQuestCompletionPipeline(
   session: Session,
   payload: QuestCompletionPayload
-): Promise<{ applied: boolean; reason: "applied" | "duplicate" | "invalid" }> {
+): Promise<{ applied: boolean; reason: "applied" | "duplicate" | "invalid"; memorySyncPending: boolean }> {
   if (!validateQuestCompletionPayload(payload)) {
-    return { applied: false, reason: "invalid" };
+    return { applied: false, reason: "invalid", memorySyncPending: false };
   }
 
   const eventKey = completionEventKey(payload);
   if (await wasCompletionProcessed(eventKey)) {
-    return { applied: false, reason: "duplicate" };
+    return { applied: false, reason: "duplicate", memorySyncPending: false };
   }
 
-  const { characterMemory, playerProfile, playerSummary } = await loadAllMemory(payload.character);
+  let memorySyncPending = false;
 
-  const updatedCharacter = applyQuestOutcomeToCharacterMemory(characterMemory, payload);
-  const updatedProfile = applyQuestOutcomeToPlayerProfile(playerProfile, payload.outcome);
+  try {
+    const { characterMemory, playerProfile, playerSummary } = await loadAllMemory(payload.character);
 
-  await persistMemory(payload.character, updatedCharacter, updatedProfile, playerSummary);
-  await markCompletionProcessed(eventKey);
+    const updatedCharacter = applyQuestOutcomeToCharacterMemory(characterMemory, payload);
+    const updatedProfile = applyQuestOutcomeToPlayerProfile(playerProfile, payload.outcome);
 
-  if (session.activeCharacter.name === payload.character) {
-    session.activeMemory = updatedCharacter;
+    await persistMemory(payload.character, updatedCharacter, updatedProfile, playerSummary);
+    await markCompletionProcessed(eventKey);
+
+    if (session.activeCharacter.name === payload.character) {
+      session.activeMemory = updatedCharacter;
+    }
+  } catch (err) {
+    console.error("[pipeline] memory sync failed, marking pending:", err);
+    memorySyncPending = true;
   }
 
-  return { applied: true, reason: "applied" };
+  // Update quest record with completion state
+  try {
+    const record = await findQuestRecord(payload.questId);
+    if (record) {
+      const updated: QuestRecord = {
+        ...record,
+        status: payload.outcome === "success" ? "completed" : payload.outcome === "failure" ? "failed" : "abandoned",
+        completedAt: payload.eventTimestamp ?? new Date().toISOString(),
+        completionOutcome: payload.outcome,
+        memorySyncPending,
+        runSummary: payload.runSummary,
+      };
+      await saveQuestRecord(updated);
+    }
+  } catch (err) {
+    console.error("[pipeline] quest record update failed:", err);
+  }
+
+  if (memorySyncPending) {
+    return { applied: true, reason: "applied", memorySyncPending: true };
+  }
+
+  if (!(await wasCompletionProcessed(completionEventKey(payload)))) {
+    await markCompletionProcessed(eventKey).catch(() => {});
+  }
+
+  return { applied: true, reason: "applied", memorySyncPending: false };
 }

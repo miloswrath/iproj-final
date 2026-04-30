@@ -37,6 +37,8 @@ export type QuestOutcome = "success" | "failure" | "abandoned";
 export interface QuestStartPayload {
   character: string;
   questId: string;
+  questTitle: string;
+  lore?: string | null;
   playerState: { level: number };
   relationshipSnapshot: {
     trust: number;
@@ -45,6 +47,13 @@ export interface QuestStartPayload {
     wariness: number;
   };
   terminationReason: string;
+}
+
+export interface RunSummary {
+  floorsCleared: number;
+  totalEnemiesDefeated: number;
+  totalChestsOpened: number;
+  completedAt: string;
 }
 
 export interface QuestCompletionPayload {
@@ -60,6 +69,39 @@ export interface QuestCompletionPayload {
   };
   rewardReceived: boolean;
   eventTimestamp?: string;
+  runSummary?: RunSummary;
+  memorySyncPending?: boolean;
+}
+
+export interface QuestRecord {
+  questId: string;
+  title: string;
+  character: string;
+  status: "active" | "completed" | "failed" | "abandoned";
+  acceptedAt: string;
+  completedAt: string | null;
+  lore: string | null;
+  sourceConversationId?: string;
+  memorySyncPending: boolean;
+  completionOutcome: QuestOutcome | null;
+  runSummary?: RunSummary;
+}
+
+export interface LoreCodexEntry {
+  questId: string;
+  title: string;
+  character: string;
+  status: "active" | "completed" | "failed" | "abandoned";
+  acceptedAt: string;
+  completedAt: string | null;
+  lore: string | null;
+  summary: string;
+}
+
+export interface CodexResponse {
+  activeQuest: LoreCodexEntry | null;
+  history: LoreCodexEntry[];
+  generatedAt: string;
 }
 
 export type NotificationType = "quest_start" | "quest_complete";
@@ -77,6 +119,7 @@ export interface PlayerProfile {
   isolation: number;
   hope: number;
   burnout: number;
+  globalCharacterLevel: number;
   traits: {
     trustsQuickly: number;
     seeksValidation: number;

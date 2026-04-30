@@ -43,6 +43,7 @@ export class ConversationOverlay {
     this.terminated = false;
     this.errorMessage = null;
     this.autoCloseTimer = null;
+    this._generation = 0;
 
     this.escKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.upKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
@@ -293,6 +294,7 @@ export class ConversationOverlay {
   async open(npc) {
     if (this.isOpen) return;
     this.isOpen = true;
+    this._generation += 1;
     this.npc = npc;
     this.sessionId = null;
     this.lines = [];
@@ -336,21 +338,26 @@ export class ConversationOverlay {
   }
 
   async startSession(archetype) {
+    const gen = this._generation;
     this.awaiting = true;
     this.refresh();
     try {
       const response = await startConversation(archetype || this.npc?.archetype || 'general', getPlaytestLevel());
+      if (this._generation !== gen) return;
       this.sessionId = response.sessionId;
       if (response.greeting) {
         this.appendLine('npc', response.greeting);
       }
       this.errorMessage = null;
     } catch (err) {
+      if (this._generation !== gen) return;
       this.handleError(err, 'start');
     } finally {
-      this.awaiting = false;
-      this.refresh();
-      this.focusInput();
+      if (this._generation === gen) {
+        this.awaiting = false;
+        this.refresh();
+        this.focusInput();
+      }
     }
   }
 
