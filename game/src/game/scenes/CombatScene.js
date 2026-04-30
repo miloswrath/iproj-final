@@ -14,9 +14,14 @@ const PLAYER_VISUAL_CONFIG = {
 };
 
 const ENEMY_VISUAL_CONFIG = {
-  'slime-idle': { endFrame: 5, frameRate: 7, scale: 2.75, shadowWidth: 112, shadowHeight: 28, attackStyle: 'slime' },
-  'plant1-idle': { endFrame: 3, frameRate: 6, scale: 2.5, shadowWidth: 116, shadowHeight: 24, attackStyle: 'plant' },
-  'vampire1-idle': { endFrame: 3, frameRate: 6, scale: 2.55, shadowWidth: 104, shadowHeight: 24, attackStyle: 'vampire' },
+  'slime-idle': { endFrame: 5, frameRate: 7, scale: 3.0, shadowWidth: 124, shadowHeight: 30, attackStyle: 'slime' },
+  'slime2-idle': { endFrame: 5, frameRate: 7, scale: 3.0, shadowWidth: 124, shadowHeight: 30, attackStyle: 'frost-slime' },
+  'slime3-idle': { endFrame: 5, frameRate: 7, scale: 3.05, shadowWidth: 126, shadowHeight: 30, attackStyle: 'ember-slime' },
+  'plant1-idle': { endFrame: 3, frameRate: 6, scale: 2.85, shadowWidth: 128, shadowHeight: 26, attackStyle: 'plant' },
+  'vampire1-idle': { endFrame: 3, frameRate: 6, scale: 2.9, shadowWidth: 120, shadowHeight: 26, attackStyle: 'vampire' },
+  'swordsman-idle': { endFrame: 11, frameRate: 8, scale: 2.85, shadowWidth: 120, shadowHeight: 26, attackStyle: 'sword' },
+  'swordsman2-idle': { endFrame: 11, frameRate: 8, scale: 2.9, shadowWidth: 122, shadowHeight: 26, attackStyle: 'sword' },
+  'swordsman3-idle': { endFrame: 11, frameRate: 8, scale: 2.95, shadowWidth: 124, shadowHeight: 28, attackStyle: 'champion' },
 };
 
 const COMBAT_BACKDROP_PROFILES = {
@@ -1362,8 +1367,8 @@ export class CombatScene extends Phaser.Scene {
       return;
     }
 
-    if (style === 'slime') {
-      this.spawnSlimeBurst(targetX, targetY, critical);
+    if (style === 'slime' || style === 'frost-slime' || style === 'ember-slime') {
+      this.spawnSlimeBurst(targetX, targetY, critical, style);
       return;
     }
 
@@ -1374,6 +1379,11 @@ export class CombatScene extends Phaser.Scene {
 
     if (style === 'vampire') {
       this.spawnVampireRush(targetX, targetY, critical, leftToRight);
+      return;
+    }
+
+    if (style === 'sword' || style === 'champion') {
+      this.spawnSwordArc(targetX, targetY, critical, leftToRight, style);
       return;
     }
 
@@ -1432,8 +1442,13 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
-  spawnSlimeBurst(x, y, critical = false) {
-    const color = critical ? 0xd9ff8a : 0x89f6cf;
+  spawnSlimeBurst(x, y, critical = false, style = 'slime') {
+    const palette = {
+      slime: critical ? 0xd9ff8a : 0x89f6cf,
+      'frost-slime': critical ? 0xe9fbff : 0x8fdcff,
+      'ember-slime': critical ? 0xffed9a : 0xff8659,
+    };
+    const color = palette[style] ?? palette.slime;
     const splat = this.add.circle(x, y, critical ? 30 : 22, color, 0.3).setStrokeStyle(4, 0xf6ffe0, 0.8);
     const globs = [
       this.add.circle(x - 22, y + 8, 8, color, 0.8),
@@ -1448,6 +1463,36 @@ export class CombatScene extends Phaser.Scene {
       duration: 180,
       onComplete: () => [splat, ...globs].forEach((node) => node.destroy()),
     });
+  }
+
+  spawnSwordArc(x, y, critical = false, leftToRight = true, style = 'sword') {
+    const direction = leftToRight ? 1 : -1;
+    const color = style === 'champion'
+      ? (critical ? 0xf2dcff : 0xb987ff)
+      : (critical ? 0xffef9a : 0xd7e2ef);
+    const arc = this.add.graphics();
+    arc.lineStyle(critical ? 8 : 6, color, 0.9);
+    arc.beginPath();
+    arc.arc(x - direction * 16, y - 6, critical ? 58 : 46, Phaser.Math.DegToRad(210), Phaser.Math.DegToRad(315), false);
+    arc.strokePath();
+
+    const edge = this.add.rectangle(x - direction * 10, y - 16, critical ? 18 : 14, critical ? 116 : 92, 0xffffff, 0.78)
+      .setAngle(direction * 52);
+    const spark = this.add.star(x, y, 5, 8, critical ? 30 : 22, color, 0.92);
+
+    this.tweens.add({
+      targets: [edge, spark],
+      alpha: 0,
+      scaleX: 1.35,
+      scaleY: 1.2,
+      duration: 180,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        edge.destroy();
+        spark.destroy();
+      },
+    });
+    this.time.delayedCall(160, () => arc.destroy());
   }
 
   spawnVineLash(x, y, critical = false, leftToRight = true) {

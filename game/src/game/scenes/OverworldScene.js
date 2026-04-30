@@ -11,6 +11,10 @@ const PLAYER_SPEED = 180;
 const SPRINT_MULTIPLIER = 1.85;
 const HUD_DEPTH = 1000;
 const SHOW_COLLISION_OVERLAY = false;
+const PLAYER_WORLD_SCALE = 0.52;
+const VILLAGE_STRUCTURE_SCALE = 1.22;
+const AI_NPC_WORLD_SCALE = 0.72;
+const TOWN_NPC_SCALE_MULTIPLIER = 1.22;
 
 export class OverworldScene extends Phaser.Scene {
   constructor() {
@@ -44,7 +48,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const spawnX = data?.spawnX ?? this.layout.spawnWorld.x;
     const spawnY = data?.spawnY ?? this.layout.spawnWorld.y;
-    this.player = this.physics.add.sprite(spawnX, spawnY, 'witch-kitty').setScale(0.6);
+    this.player = this.physics.add.sprite(spawnX, spawnY, 'witch-kitty').setScale(PLAYER_WORLD_SCALE);
     this.player.setFrame(0);
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(450);
@@ -735,7 +739,7 @@ export class OverworldScene extends Phaser.Scene {
       if (item.kind === 'critter-loop') {
         const critter = this.add
           .sprite(worldX - 6, worldY + 1, 'slime-idle', 0)
-          .setScale(0.18)
+          .setScale(0.28)
           .setDepth(314);
         this.tweens.add({
           targets: critter,
@@ -762,27 +766,27 @@ export class OverworldScene extends Phaser.Scene {
         this.add
           .image(worldX, worldY - 20, 'guild-hall-exterior')
           .setDepth(worldY + 150)
-          .setScale(0.44);
+          .setScale(0.44 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'house-1') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-1')
           .setDepth(worldY + 120)
-          .setScale(0.76);
+          .setScale(0.76 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'house-2') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-2')
           .setDepth(worldY + 120)
-          .setScale(0.68);
+          .setScale(0.68 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'house-3') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-3')
           .setDepth(worldY + 120)
-          .setScale(0.64);
+          .setScale(0.64 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'house-4') {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-4')
           .setDepth(worldY + 120)
-          .setScale(0.64);
+          .setScale(0.64 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'mega-tree') {
         this.add.ellipse(worldX, worldY + 11, 34, 16, 0x000000, 0.24).setDepth(worldY + 101);
         this.add
@@ -812,32 +816,32 @@ export class OverworldScene extends Phaser.Scene {
         this.add
           .image(worldX, worldY - 15, 'forest-living-gazebo-1')
           .setDepth(worldY + 124)
-          .setScale(0.52);
+          .setScale(0.52 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'tent-1') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-1')
           .setDepth(worldY + 110)
-          .setScale(0.78);
+          .setScale(0.78 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'tent-2') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-2')
           .setDepth(worldY + 110)
-          .setScale(0.78);
+          .setScale(0.78 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'tent-3') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-3')
           .setDepth(worldY + 110)
-          .setScale(0.78);
+          .setScale(0.78 * VILLAGE_STRUCTURE_SCALE);
       } else if (item.kind === 'tent-4') {
         this.add
           .image(worldX, worldY - 4, 'overworld-tent-4')
           .setDepth(worldY + 110)
-          .setScale(0.78);
+          .setScale(0.78 * VILLAGE_STRUCTURE_SCALE);
       } else {
         this.add
           .image(worldX, worldY - 8, 'overworld-house-2')
           .setDepth(worldY + 120)
-          .setScale(0.93);
+          .setScale(0.93 * VILLAGE_STRUCTURE_SCALE);
       }
     }
   }
@@ -868,7 +872,7 @@ export class OverworldScene extends Phaser.Scene {
       const sprite = this.add
         .sprite(worldX, worldY, npc.spriteKey, 0)
         .setDepth(worldY + 120)
-        .setScale(0.5);
+        .setScale(AI_NPC_WORLD_SCALE);
       sprite.anims.play(animKey, true);
 
       const prompt = this.add
@@ -920,8 +924,8 @@ export class OverworldScene extends Phaser.Scene {
       const worldY = npc.y * this.layout.tileSize + this.layout.tileSize / 2;
       const pulse = 1200 + ((npc.x * 3 + npc.y) % 5) * 120;
 
-      const actorScale = npc.scale ?? 1.1;
-      this.add.ellipse(worldX, worldY + 16, 28, 12, 0x000000, 0.24).setDepth(worldY + 105);
+      const actorScale = (npc.scale ?? 1.1) * TOWN_NPC_SCALE_MULTIPLIER;
+      this.add.ellipse(worldX, worldY + 16, 34, 14, 0x000000, 0.24).setDepth(worldY + 105);
 
       const actor = this.add
         .sprite(worldX, worldY + 1, npc.sprite, npc.frame ?? 0)

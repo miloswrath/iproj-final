@@ -16,7 +16,7 @@ import {
   freezeSession,
   setQuestOffered,
 } from "../../session.js";
-import type { Character, ConversationState } from "../../types.js";
+import type { AuthoritativeState, Character, ConversationState } from "../../types.js";
 import { readJsonBody, sendError, sendJson } from "../http.js";
 import * as registry from "../sessionRegistry.js";
 
@@ -54,10 +54,30 @@ function snapshotState(state: ConversationState): ConversationState {
   };
 }
 
+function parsePlayerLevel(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(1, Math.floor(value))
+    : 1;
+}
+
+function createAuthoritativeState(playerLevel: number): AuthoritativeState {
+  return {
+    player: {
+      level: playerLevel,
+      activeQuest: null,
+      completedQuests: [],
+    },
+    world: {
+      companionsUnlocked: [],
+      globalFlags: {},
+    },
+  };
+}
+
 async function handleStart(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  let body: { character?: unknown };
+  let body: { character?: unknown; playerLevel?: unknown };
   try {
-    body = (await readJsonBody(req)) as { character?: unknown };
+    body = (await readJsonBody(req)) as { character?: unknown; playerLevel?: unknown };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg === "invalid_json") {
@@ -91,6 +111,7 @@ async function handleStart(req: IncomingMessage, res: ServerResponse): Promise<v
   const enriched: Character = { ...character, systemPrompt: enrichedPrompt };
 
   const session = createSession(enriched, characterMemory);
+  session.authoritativeState = createAuthoritativeState(parsePlayerLevel(body.playerLevel));
 
   let greeting: string;
   try {

@@ -64,10 +64,11 @@ export async function runWithNotification(
   await runPostConversationPipeline(session);
 
   const { relationship } = session.activeMemory;
+  const playerLevel = session.authoritativeState?.player.level ?? 1;
   await notifyQuestStart({
     character: session.activeCharacter.name,
     questId,
-    playerState: { level: 1 }, // authoritative state not yet integrated
+    playerState: { level: playerLevel },
     relationshipSnapshot: {
       trust: relationship.trust,
       dependency: relationship.dependency,
