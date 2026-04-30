@@ -1,6 +1,11 @@
 import fs from "fs/promises";
 import path from "path";
-import { MEMORY_DIR } from "../../src/memory/store.js";
+import {
+  MEMORY_DIR,
+  defaultPlayerProfile,
+  defaultPlayerSummary,
+  writeJsonAtomic,
+} from "../../src/memory/store.js";
 
 const PENDING_PATH = path.join(MEMORY_DIR, "pending-notifications.json");
 const PROCESSED_PATH = path.join(MEMORY_DIR, "processed-completions.json");
@@ -54,6 +59,8 @@ export async function withMemoryIsolation<T>(fn: () => Promise<T>): Promise<T> {
   await fs.mkdir(CHARACTERS_DIR, { recursive: true });
   await fs.writeFile(PENDING_PATH, "[]", "utf8");
   await fs.writeFile(PROCESSED_PATH, "[]", "utf8");
+  await writeJsonAtomic(PLAYER_PROFILE_PATH, defaultPlayerProfile());
+  await writeJsonAtomic(PLAYER_SUMMARY_PATH, defaultPlayerSummary());
 
   try {
     return await fn();

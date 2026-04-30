@@ -4,8 +4,10 @@ import { DeveloperModeController } from '../editor/DeveloperModeController';
 import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
 import { InventoryOverlay } from '../ui/InventoryOverlay';
 import { ConversationOverlay } from '../ui/ConversationOverlay';
+import { LoreCodexOverlay } from '../ui/LoreCodexOverlay';
 import { HUDController } from '../ui/HUDController';
-import { getPlaytestInventoryState, getPlaytestProgressionSummary } from '../playtestProgression';
+import { getPlaytestInventoryState, getPlaytestProgressionSummary, setQuestRunState, clearQuestRunState, isQuestRunActive } from '../playtestProgression';
+import { QuestEventStream, getLastQuestStartPayload } from '../services/questEvents';
 
 const PLAYER_SPEED = 180;
 const SPRINT_MULTIPLIER = 1.85;
@@ -20,6 +22,17 @@ export class OverworldScene extends Phaser.Scene {
   create(data) {
     this.dungeonCompletionStatus = data?.dungeonCompletionStatus ?? null;
     this.rewardSummaryText = data?.rewardSummaryText ?? '';
+    this.companionFollowActive = false;
+    this.companionFollowSprite = null;
+    this.questPortalLabel = null;
+    this.questEventStream = new QuestEventStream();
+    this.codexOverlay = null;
+
+    // If returning from completed quest run, clear run state
+    if (data?.questCompleted) {
+      clearQuestRunState();
+    }
+
     this.layout = createOverworldLayout();
     this.cameras.main.setBackgroundColor(0x9bad76);
 
@@ -190,11 +203,25 @@ export class OverworldScene extends Phaser.Scene {
       .setStrokeStyle(2, 0xd7f171, 0.55);
 
     this.hud = new HUDController(this);
+
+    // Subscribe to quest events for portal labeling + companion follow
+    this._unsubQuestStart = this.questEventStream.onQuestStart((payload) => {
+      this.onQuestStarted(payload);
+    });
+
+    // Initialize portal label from any in-progress active quest
+    const existingQuestPayload = getLastQuestStartPayload();
+    if (existingQuestPayload?.questTitle) {
+      this.updatePortalLabel(existingQuestPayload.questTitle);
+    }
+
+    // C key opens lore codex
+    this.codexKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+
     this.events.once('shutdown', () => {
-      if (this.hud) {
-        this.hud.destroy();
-        this.hud = null;
-      }
+      if (this.hud) { this.hud.destroy(); this.hud = null; }
+      if (this._unsubQuestStart) { this._unsubQuestStart(); this._unsubQuestStart = null; }
+      if (this.questEventStream) { this.questEventStream.dispose(); this.questEventStream = null; }
     });
   }
 
@@ -234,7 +261,30 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    if (this.codexOverlay?.isOpen) {
+      if (Phaser.Input.Keyboard.JustDown(this.codexKey)) {
+        this.codexOverlay.close();
+      } else {
+        this.codexOverlay.update();
+      }
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.codexKey)) {
+      this.getCodexOverlay().open();
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
     const nearestNpc = this.updateAiNpcInteraction();
+    this.updateCompanionFollow();
 
     const left = this.keys.left.isDown || this.wasd.A.isDown;
     const right = this.keys.right.isDown || this.wasd.D.isDown;
@@ -892,6 +942,112 @@ export class OverworldScene extends Phaser.Scene {
       this.conversationOverlay = new ConversationOverlay(this);
     }
     return this.conversationOverlay;
+  }
+
+  getCodexOverlay() {
+    if (!this.codexOverlay) {
+      this.codexOverlay = new LoreCodexOverlay(this);
+    }
+    return this.codexOverlay;
+  }
+
+  onQuestStarted(payload) {
+    if (!this.scene?.isActive()) return;
+
+    const questTitle = payload?.questTitle ?? payload?.questId ?? 'Quest';
+    this.updatePortalLabel(questTitle);
+
+    // Build quest run state from the 3-floor pool
+    this.buildQuestRunState(payload);
+
+    // Activate companion follow if NPC sprite is available
+    this.activateCompanionFollow();
+  }
+
+  updatePortalLabel(title) {
+    if (this.questPortalLabel) {
+      this.questPortalLabel.destroy();
+      this.questPortalLabel = null;
+    }
+    if (!title) return;
+    const x = this.layout.dungeonEntryWorld.x;
+    const y = this.layout.dungeonEntryWorld.y;
+    this.questPortalLabel = this.add
+      .text(x, y - 52, title, {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#d7f171',
+        backgroundColor: '#1d2d19cc',
+        padding: { x: 5, y: 2 },
+      })
+      .setOrigin(0.5)
+      .setDepth(440)
+      .setScrollFactor(1);
+  }
+
+  buildQuestRunState(payload) {
+    // Select 3 floor IDs from the curated pool deterministically
+    const poolLayouts = this.getAvailableFloorIds();
+    const floorIds = this.pickThreeFloors(poolLayouts, payload?.questId ?? '');
+    const runState = {
+      isActive: true,
+      questId: payload?.questId ?? 'unknown_quest',
+      questTitle: payload?.questTitle ?? 'Quest',
+      character: payload?.character ?? 'general',
+      floorIds,
+      currentFloorIndex: 0,
+      totalEnemiesDefeated: 0,
+      totalChestsOpened: 0,
+      startedAt: new Date().toISOString(),
+    };
+    setQuestRunState(runState);
+  }
+
+  getAvailableFloorIds() {
+    return ['atrium-chain', 'sundered-halls', 'ring-galleries', 'split-sanctum', 'lantern-way'];
+  }
+
+  pickThreeFloors(poolIds, seed) {
+    // Simple deterministic selection of 3 floors from available IDs
+    const CURATED_IDS = ['atrium-chain', 'sundered-halls', 'ring-galleries', 'split-sanctum', 'lantern-way'];
+    const available = poolIds.length >= 3 ? poolIds : CURATED_IDS;
+    const hash = (str) => str.split('').reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 7);
+    const h = hash(seed);
+    const first = h % available.length;
+    const second = (h + 1) % available.length;
+    const third = (h + 2) % available.length;
+    return [
+      available[first],
+      available[second !== first ? second : (second + 1) % available.length],
+      available[third !== first && third !== second ? third : (third + 2) % available.length],
+    ];
+  }
+
+  activateCompanionFollow() {
+    // Enable companion follow on the first AI NPC sprite found
+    if (!this.aiNpcs?.length) return;
+    const npcEntry = this.aiNpcs[0];
+    if (!npcEntry?.sprite) return;
+    this.companionFollowActive = true;
+    this.companionFollowSprite = npcEntry.sprite;
+    this.companionFollowSprite.setDepth(500);
+  }
+
+  updateCompanionFollow() {
+    if (!this.companionFollowActive || !this.companionFollowSprite || !this.player) return;
+    const FOLLOW_SPEED = 320;
+    const DESIRED_DIST = 40;
+    const dx = this.player.x - this.companionFollowSprite.x;
+    const dy = this.player.y - this.companionFollowSprite.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > DESIRED_DIST) {
+      const t = Math.min(1, (dist - DESIRED_DIST) / 120);
+      const moveX = (dx / dist) * FOLLOW_SPEED * t * (1 / 60);
+      const moveY = (dy / dist) * FOLLOW_SPEED * t * (1 / 60);
+      this.companionFollowSprite.x += moveX;
+      this.companionFollowSprite.y += moveY;
+      this.companionFollowSprite.setDepth(this.companionFollowSprite.y + 120);
+    }
   }
 
   updateAiNpcInteraction() {

@@ -5,12 +5,14 @@ import type {
   CharacterMemory,
   PlayerProfile,
   PlayerSummary,
+  QuestRecord,
 } from "../types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const MEMORY_DIR = path.resolve(__dirname, "../../memory");
 const CHARACTERS_DIR = path.join(MEMORY_DIR, "characters");
 const PROCESSED_COMPLETIONS_PATH = path.join(MEMORY_DIR, "processed-completions.json");
+const QUESTS_PATH = path.join(MEMORY_DIR, "quests.json");
 
 export async function ensureMemoryDirs(): Promise<void> {
   await fs.mkdir(CHARACTERS_DIR, { recursive: true });
@@ -37,11 +39,49 @@ export function defaultPlayerProfile(): PlayerProfile {
     isolation: 50,
     hope: 50,
     burnout: 30,
+    globalCharacterLevel: 1,
     traits: {
       trustsQuickly: 0.5,
       seeksValidation: 0.5,
       skepticism: 0.5,
       riskTolerance: 0.5,
+    },
+  };
+}
+
+function normalizeGlobalCharacterLevel(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
+    return 1;
+  }
+
+  return value;
+}
+
+export function normalizePlayerProfile(profile: Partial<PlayerProfile> | null | undefined): PlayerProfile {
+  const defaults = defaultPlayerProfile();
+
+  return {
+    isolation: typeof profile?.isolation === "number" ? profile.isolation : defaults.isolation,
+    hope: typeof profile?.hope === "number" ? profile.hope : defaults.hope,
+    burnout: typeof profile?.burnout === "number" ? profile.burnout : defaults.burnout,
+    globalCharacterLevel: normalizeGlobalCharacterLevel(profile?.globalCharacterLevel),
+    traits: {
+      trustsQuickly:
+        typeof profile?.traits?.trustsQuickly === "number"
+          ? profile.traits.trustsQuickly
+          : defaults.traits.trustsQuickly,
+      seeksValidation:
+        typeof profile?.traits?.seeksValidation === "number"
+          ? profile.traits.seeksValidation
+          : defaults.traits.seeksValidation,
+      skepticism:
+        typeof profile?.traits?.skepticism === "number"
+          ? profile.traits.skepticism
+          : defaults.traits.skepticism,
+      riskTolerance:
+        typeof profile?.traits?.riskTolerance === "number"
+          ? profile.traits.riskTolerance
+          : defaults.traits.riskTolerance,
     },
   };
 }
@@ -107,7 +147,7 @@ export async function loadAllMemory(characterName: string): Promise<{
   ]);
 
   return {
-    playerProfile: playerProfile ?? defaultPlayerProfile(),
+    playerProfile: normalizePlayerProfile(playerProfile),
     playerSummary: playerSummary ?? defaultPlayerSummary(),
     characterMemory: characterMemory ?? defaultCharacterMemory(inferArchetype(characterName)),
   };
@@ -167,4 +207,45 @@ export async function markCompletionProcessed(eventKey: string): Promise<void> {
     processed.push(eventKey);
     await writeJsonAtomic(PROCESSED_COMPLETIONS_PATH, processed);
   }
+}
+
+// ─── Quest Record Persistence ─────────────────────────────────────────────────
+
+export async function loadQuestRecords(): Promise<QuestRecord[]> {
+  return (await readJson<QuestRecord[]>(QUESTS_PATH)) ?? [];
+}
+
+export async function saveQuestRecord(record: QuestRecord): Promise<void> {
+  const records = await loadQuestRecords();
+  const idx = records.findIndex((r) => r.questId === record.questId);
+  if (idx >= 0) {
+    records[idx] = record;
+  } else {
+    records.push(record);
+  }
+  await writeJsonAtomic(QUESTS_PATH, records);
+}
+
+export async function findQuestRecord(questId: string): Promise<QuestRecord | null> {
+  const records = await loadQuestRecords();
+  return records.find((r) => r.questId === questId) ?? null;
+}
+
+export async function findActiveQuest(): Promise<QuestRecord | null> {
+  const records = await loadQuestRecords();
+  return records.find((r) => r.status === "active") ?? null;
+}
+
+export async function getAllQuestTitles(): Promise<Set<string>> {
+  const records = await loadQuestRecords();
+  return new Set(records.map((r) => r.title.toLowerCase()));
+}
+
+export async function getCompletedQuestIds(characterName: string, limit = 5): Promise<string[]> {
+  const records = await loadQuestRecords();
+  return records
+    .filter((r) => r.character === characterName && (r.status === "completed" || r.status === "failed" || r.status === "abandoned"))
+    .sort((a, b) => (b.completedAt ?? b.acceptedAt).localeCompare(a.completedAt ?? a.acceptedAt))
+    .slice(0, limit)
+    .map((r) => r.questId);
 }

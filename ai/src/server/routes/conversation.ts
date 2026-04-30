@@ -5,8 +5,18 @@ import type { Server, IncomingMessage, ServerResponse } from "node:http";
 import { findCharacter, loadCharacters } from "../../characters.js";
 import { sendMessage } from "../../client.js";
 import { buildEnrichedSystemPrompt } from "../../memory/context.js";
-import { loadAllMemory } from "../../memory/store.js";
-import { detectAcceptance, detectQuestOffer } from "../../lifecycle/detector.js";
+import {
+  loadAllMemory,
+  getAllQuestTitles,
+  saveQuestRecord,
+  getCompletedQuestIds,
+} from "../../memory/store.js";
+import {
+  detectAcceptance,
+  detectQuestOffer,
+  enforceUniqueQuestTitle,
+  generateQuestLore,
+} from "../../lifecycle/detector.js";
 import {
   runPostConversationPipeline,
   runWithNotification,
@@ -16,7 +26,7 @@ import {
   freezeSession,
   setQuestOffered,
 } from "../../session.js";
-import type { Character, ConversationState } from "../../types.js";
+import type { Character, ConversationState, QuestRecord } from "../../types.js";
 import { readJsonBody, sendError, sendJson } from "../http.js";
 import * as registry from "../sessionRegistry.js";
 
@@ -83,10 +93,12 @@ async function handleStart(req: IncomingMessage, res: ServerResponse): Promise<v
   const { playerProfile, playerSummary, characterMemory } = await loadAllMemory(
     character.name
   );
+  const recentQuestIds = await getCompletedQuestIds(character.name, 3).catch(() => [] as string[]);
   const enrichedPrompt = buildEnrichedSystemPrompt(
     character.systemPrompt,
     characterMemory,
-    playerSummary
+    playerSummary,
+    recentQuestIds
   );
   const enriched: Character = { ...character, systemPrompt: enrichedPrompt };
 
@@ -211,6 +223,9 @@ async function handleMessage(
     );
     if (offerResult.offered) {
       setQuestOffered(session, offerResult.questId);
+      // Stash title for use at acceptance time
+      (entry as any)._pendingQuestTitle = offerResult.questTitle;
+      (entry as any)._pendingQuestNpcText = reply;
     }
   }
 
@@ -230,8 +245,42 @@ async function handleMessage(
       const finalReply =
         confirmReply === "__CONNECTION_ERROR__" ? reply : confirmReply;
       const questId = session.conversationState.questOffered ?? "unknown_quest";
+
+      // Build unique title and optionally generate lore
+      let questTitle: string = (entry as any)._pendingQuestTitle ?? questId;
+      let lore: string | null = null;
       try {
-        await runWithNotification(session, questId);
+        const existingTitles = await getAllQuestTitles();
+        questTitle = enforceUniqueQuestTitle(questTitle, existingTitles);
+        const npcText = (entry as any)._pendingQuestNpcText ?? "";
+        if (npcText) {
+          lore = await generateQuestLore(questTitle, npcText, session.activeCharacter.name);
+        }
+      } catch (err) {
+        console.error("[bridge] title/lore generation failed:", err);
+      }
+
+      // Persist quest record
+      try {
+        const questRecord: QuestRecord = {
+          questId,
+          title: questTitle,
+          character: session.activeCharacter.name,
+          status: "active",
+          acceptedAt: new Date().toISOString(),
+          completedAt: null,
+          lore,
+          sourceConversationId: sessionId,
+          memorySyncPending: false,
+          completionOutcome: null,
+        };
+        await saveQuestRecord(questRecord);
+      } catch (err) {
+        console.error("[bridge] quest record save failed:", err);
+      }
+
+      try {
+        await runWithNotification(session, questId, questTitle, lore);
       } catch (err) {
         console.error("[bridge] runWithNotification failed:", err);
       }

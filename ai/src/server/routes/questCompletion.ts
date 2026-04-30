@@ -10,6 +10,7 @@ import type {
   Character,
   QuestCompletionPayload,
   QuestOutcome,
+  RunSummary,
 } from "../../types.js";
 import { readJsonBody, sendError, sendJson } from "../http.js";
 
@@ -34,6 +35,8 @@ async function handleQuestComplete(
     outcome?: unknown;
     rewardReceived?: unknown;
     playerLevel?: unknown;
+    eventTimestamp?: unknown;
+    runSummary?: unknown;
   };
   try {
     body = (await readJsonBody(req)) as typeof body;
@@ -55,6 +58,21 @@ async function handleQuestComplete(
     typeof body.playerLevel === "number" && Number.isFinite(body.playerLevel)
       ? body.playerLevel
       : 1;
+  const eventTimestamp =
+    typeof body.eventTimestamp === "string" && body.eventTimestamp.trim().length > 0
+      ? body.eventTimestamp
+      : new Date().toISOString();
+
+  let runSummary: RunSummary | undefined;
+  if (body.runSummary && typeof body.runSummary === "object") {
+    const rs = body.runSummary as Record<string, unknown>;
+    runSummary = {
+      floorsCleared: typeof rs["floorsCleared"] === "number" ? rs["floorsCleared"] : 0,
+      totalEnemiesDefeated: typeof rs["totalEnemiesDefeated"] === "number" ? rs["totalEnemiesDefeated"] : 0,
+      totalChestsOpened: typeof rs["totalChestsOpened"] === "number" ? rs["totalChestsOpened"] : 0,
+      completedAt: typeof rs["completedAt"] === "string" ? rs["completedAt"] : new Date().toISOString(),
+    };
+  }
 
   if (
     typeof outcome !== "string" ||
@@ -101,6 +119,8 @@ async function handleQuestComplete(
       wariness: rel.wariness,
     },
     rewardReceived,
+    eventTimestamp,
+    runSummary,
   };
 
   const result = await runQuestCompletionPipeline(synthSession, payload);
@@ -109,14 +129,14 @@ async function handleQuestComplete(
     try {
       await notifyQuestComplete({
         ...payload,
-        eventTimestamp: new Date().toISOString(),
+        memorySyncPending: result.memorySyncPending,
       });
     } catch (err) {
       console.error("[bridge] notifyQuestComplete failed:", err);
     }
   }
 
-  sendJson(res, 200, { applied: result.applied, reason: result.reason });
+  sendJson(res, 200, { applied: result.applied, reason: result.reason, memorySyncPending: result.memorySyncPending });
 }
 
 export function register(server: Server): void {

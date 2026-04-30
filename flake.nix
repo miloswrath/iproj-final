@@ -24,7 +24,7 @@
 
     devShells = forEachSupportedSystem ({pkgs}: {
       default = pkgs.mkShell {
-        packages = with pkgs; [node2nix nodejs nodePackages.pnpm yarn uv];
+        packages = with pkgs; [nodejs pnpm yarn uv];
         shellHook = ''
           uv tool install specify-cli --from git+https://github.com/github/spec-kit.git 
           export PATH="$HOME/.local/bin:$PATH"

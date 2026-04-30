@@ -38,6 +38,7 @@ const progressionState = {
     rewardsEarned: 0,
   },
   lastReward: null,
+  questRunState: null,
 };
 
 function getProgressionLevel() {
@@ -304,4 +305,62 @@ export function recordDungeonClear(layoutState) {
   normalizeInventoryState();
   progressionState.playerCombat.hp = progressionState.playerCombat.maxHp;
   return true;
+}
+
+// ─── Quest Run State ──────────────────────────────────────────────────────────
+
+export function getQuestRunState() {
+  return progressionState.questRunState;
+}
+
+export function setQuestRunState(state) {
+  progressionState.questRunState = state;
+}
+
+export function clearQuestRunState() {
+  progressionState.questRunState = null;
+}
+
+export function isQuestRunActive() {
+  return progressionState.questRunState !== null && progressionState.questRunState.isActive === true;
+}
+
+export function advanceQuestRunFloor() {
+  const state = progressionState.questRunState;
+  if (!state) return false;
+  if (state.currentFloorIndex >= 2) return false;
+  state.currentFloorIndex += 1;
+  return true;
+}
+
+export function recordQuestFloorEnemyDefeated(enemyId) {
+  const state = progressionState.questRunState;
+  if (!state) return;
+  if (!state.defeatedEnemyIds) {
+    state.defeatedEnemyIds = {};
+  }
+  const floorKey = `floor${state.currentFloorIndex}`;
+  if (enemyId && state.defeatedEnemyIds[floorKey]?.includes(enemyId)) {
+    return;
+  }
+  if (enemyId) {
+    if (!state.defeatedEnemyIds[floorKey]) {
+      state.defeatedEnemyIds[floorKey] = [];
+    }
+    state.defeatedEnemyIds[floorKey].push(enemyId);
+  }
+  if (!state.floorStats) state.floorStats = {};
+  if (!state.floorStats[floorKey]) state.floorStats[floorKey] = { enemiesDefeated: 0, chestsOpened: 0 };
+  state.floorStats[floorKey].enemiesDefeated += 1;
+  state.totalEnemiesDefeated = (state.totalEnemiesDefeated ?? 0) + 1;
+}
+
+export function recordQuestFloorChestOpened() {
+  const state = progressionState.questRunState;
+  if (!state) return;
+  if (!state.floorStats) state.floorStats = {};
+  const key = `floor${state.currentFloorIndex}`;
+  if (!state.floorStats[key]) state.floorStats[key] = { enemiesDefeated: 0, chestsOpened: 0 };
+  state.floorStats[key].chestsOpened += 1;
+  state.totalChestsOpened = (state.totalChestsOpened ?? 0) + 1;
 }

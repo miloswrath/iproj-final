@@ -101,6 +101,7 @@ export function updatePlayerProfile(
     isolation: clamp(profile.isolation * PERSISTENCE - 5 * agreementRatio),
     hope:      clamp(profile.hope * PERSISTENCE + 3 * agreementRatio - 2 * hedgingFrequency * 0.2),
     burnout:   clamp(profile.burnout * PERSISTENCE + 2 * hedgingFrequency * 0.2),
+    globalCharacterLevel: profile.globalCharacterLevel,
     traits: {
       trustsQuickly:    clamp01(profile.traits.trustsQuickly * 0.9    + 0.1 * agreementRatio),
       seeksValidation:  clamp01(profile.traits.seeksValidation * 0.9  + 0.1 * Math.min(validationSeeking / 3, 1)),
@@ -171,6 +172,8 @@ export function applyQuestOutcomeToPlayerProfile(
     ...profile,
     burnout: clamp(profile.burnout + burnoutDelta),
     hope: clamp(profile.hope + hopeDelta),
+    globalCharacterLevel:
+      outcome === "success" ? profile.globalCharacterLevel + 1 : profile.globalCharacterLevel,
     traits: {
       ...profile.traits,
       riskTolerance: clamp01(profile.traits.riskTolerance + riskDelta),
