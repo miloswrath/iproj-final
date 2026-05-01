@@ -22,6 +22,7 @@ import {
   runWithNotification,
 } from "../../lifecycle/pipeline.js";
 import {
+  clearSession,
   createSession,
   freezeSession,
   setQuestOffered,
@@ -371,6 +372,7 @@ async function handleEnd(
   } catch (err) {
     console.error("[bridge] runPostConversationPipeline failed:", err);
   } finally {
+    clearSession(session);
     entry.terminated = true;
     registry.remove(sessionId);
   }

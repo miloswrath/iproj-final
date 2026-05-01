@@ -465,7 +465,7 @@ export class ConversationOverlay {
 
     let status = '';
     if (this.terminated) {
-      status = 'Conversation ended. Closing...';
+      status = 'Conversation ended — press Esc to close.';
     } else if (this.awaiting) {
       status = 'Waiting for reply...';
     }
@@ -483,11 +483,8 @@ export class ConversationOverlay {
   }
 
   scheduleAutoClose() {
-    this.cancelAutoClose();
-    this.autoCloseTimer = this.scene.time.delayedCall(1500, () => {
-      this.autoCloseTimer = null;
-      this.close();
-    });
+    // Don't auto-close — let the player read the final message at their own pace
+    this.refresh();
   }
 
   cancelAutoClose() {
@@ -495,6 +492,16 @@ export class ConversationOverlay {
       this.autoCloseTimer.remove(false);
       this.autoCloseTimer = null;
     }
+  }
+
+  destroy() {
+    this._generation += 1;
+    this.cancelAutoClose();
+    this.isOpen = false;
+    for (const element of this.elements) {
+      try { element.destroy(); } catch { /* ignore */ }
+    }
+    this.elements = [];
   }
 
   update() {
