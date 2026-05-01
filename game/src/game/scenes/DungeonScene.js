@@ -18,6 +18,7 @@ import {
   recordQuestFloorChestOpened,
 } from '../playtestProgression';
 import { recheckFloorObjectives, reportQuestComplete } from '../services/questRunClient';
+import { npcs as npcList } from '../npc/npcConfig';
 
 const TILE_SIZE = 40;
 const TILE_SCALE = TILE_SIZE / 16;
@@ -362,6 +363,12 @@ export class DungeonScene extends Phaser.Scene {
     this.lastDirection = 'down';
     this.lastCellKey = this.getPlayerCellKey();
 
+    this.companionSprite = null;
+    if (this.questRunMode) {
+      const companionKey = npcList[0]?.spriteKey ?? null;
+      if (companionKey) this.spawnCompanion(companionKey, spawnPosition);
+    }
+
     this.physics.add.collider(this.player, this.obstacles);
     this.spawnRoamingEnemies();
     this.createExitPortal(spawnPosition);
@@ -619,6 +626,41 @@ export class DungeonScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+  }
+
+  spawnCompanion(spriteKey, spawnPosition) {
+    const animKey = `${spriteKey}-loop`;
+    if (!this.anims.exists(animKey)) {
+      const tex = this.textures.get(spriteKey);
+      const totalFrames = tex?.frameTotal ? Math.max(1, tex.frameTotal - 1) : 1;
+      this.anims.create({
+        key: animKey,
+        frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: Math.max(0, totalFrames - 1) }),
+        frameRate: 6,
+        repeat: -1,
+      });
+    }
+    this.add.ellipse(spawnPosition.x + 32, spawnPosition.y + 12, 28, 10, 0x000000, 0.28).setDepth(spawnPosition.y + 105);
+    this.companionSprite = this.add
+      .sprite(spawnPosition.x + 32, spawnPosition.y, spriteKey, 0)
+      .setScale(0.72)
+      .setDepth(spawnPosition.y + 120);
+    this.companionSprite.anims.play(animKey, true);
+  }
+
+  updateCompanionFollow() {
+    if (!this.companionSprite || !this.player) return;
+    const FOLLOW_SPEED = 320;
+    const DESIRED_DIST = 40;
+    const dx = this.player.x - this.companionSprite.x;
+    const dy = this.player.y - this.companionSprite.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > DESIRED_DIST) {
+      const t = Math.min(1, (dist - DESIRED_DIST) / 120);
+      this.companionSprite.x += (dx / dist) * FOLLOW_SPEED * t * (1 / 60);
+      this.companionSprite.y += (dy / dist) * FOLLOW_SPEED * t * (1 / 60);
+      this.companionSprite.setDepth(this.companionSprite.y + 120);
+    }
   }
 
   updateEncounterUi() {
@@ -1704,6 +1746,7 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     this.updateMovement();
+    this.updateCompanionFollow();
     this.updateRoamingEnemies();
   }
 
@@ -2520,6 +2563,7 @@ export class DungeonScene extends Phaser.Scene {
       dungeonCompletionStatus: 'complete',
       rewardSummaryText: this.layoutState.lastChestRewardText ?? '',
       questCompleted: true,
+      questTitle: runState?.questTitle ?? 'Quest',
     });
   }
 

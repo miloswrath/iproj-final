@@ -8,6 +8,7 @@ import { LoreCodexOverlay } from '../ui/LoreCodexOverlay';
 import { HUDController } from '../ui/HUDController';
 import { getPlaytestInventoryState, getPlaytestProgressionSummary, setQuestRunState, clearQuestRunState, isQuestRunActive } from '../playtestProgression';
 import { QuestEventStream, getLastQuestStartPayload } from '../services/questEvents';
+import { spawnQuestToast } from '../ui/QuestToast';
 
 const PLAYER_SPEED = 180;
 const SPRINT_MULTIPLIER = 1.85;
@@ -222,7 +223,16 @@ export class OverworldScene extends Phaser.Scene {
     // C key opens lore codex
     this.codexKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
 
+    if (data?.questCompleted && data?.questTitle) {
+      spawnQuestToast(this, {
+        kind: 'quest_complete',
+        title: data.questTitle,
+        bodyLine: 'All floors cleared!',
+      });
+    }
+
     this.events.once('shutdown', () => {
+      if (this.conversationOverlay) { this.conversationOverlay.destroy(); this.conversationOverlay = null; }
       if (this.hud) { this.hud.destroy(); this.hud = null; }
       if (this._unsubQuestStart) { this._unsubQuestStart(); this._unsubQuestStart = null; }
       if (this.questEventStream) { this.questEventStream.dispose(); this.questEventStream = null; }

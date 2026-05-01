@@ -32,13 +32,14 @@ export async function sendMessage(
     "Only offer a new quest from assistant turn 3 onward.",
   ].join(" ");
 
+  const MAX_HISTORY_MESSAGES = 20;
   const messages = [
     { role: "system" as const, content: session.activeCharacter.systemPrompt },
     {
       role: "system" as const,
       content: `${runtimeInstruction}\n\n\`\`\`json\n${JSON.stringify(runtimeState, null, 2)}\n\`\`\``,
     },
-    ...getHistoryMessages(session),
+    ...getHistoryMessages(session).slice(-MAX_HISTORY_MESSAGES),
   ];
 
   try {
