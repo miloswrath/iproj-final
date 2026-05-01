@@ -4,7 +4,8 @@ import fs from "node:fs/promises";
 import path from "path";
 import { runQuestCompletionPipeline } from "../../src/lifecycle/pipeline.js";
 import { createSession } from "../../src/session.js";
-import { defaultCharacterMemory, defaultPlayerProfile, MEMORY_DIR, readJson } from "../../src/memory/store.js";
+import { defaultCharacterMemory, defaultPlayerProfile, FRIENDSHIP_STATE_PATH, MEMORY_DIR, readJson } from "../../src/memory/store.js";
+import { unlockNpcFriendship } from "../../src/memory/friendship.js";
 import { withMemoryIsolation } from "../helpers/runtime-harness.js";
 import { buildPlayerProfile, buildQuestCompletion } from "../helpers/outcome-builders.js";
 import type { CharacterMemory, PlayerProfile } from "../../src/types.js";
@@ -72,6 +73,37 @@ test("success/failure/abandoned outcomes mutate memory as expected", async () =>
     assert.ok(profile);
     assert.equal(memory.progression.questLevel, baselineMemory.progression.questLevel + 1);
     assert.equal(profile.globalCharacterLevel, baselineProfile.globalCharacterLevel + 1);
+  });
+});
+
+test("friendship unlock applies once after the third success", async () => {
+  await withMemoryIsolation(async () => {
+    const session = createSession(character, defaultCharacterMemory());
+
+    for (let index = 0; index < 3; index += 1) {
+      const result = await runQuestCompletionPipeline(
+        session,
+        buildQuestCompletion({
+          outcome: "success",
+          npcId: "girl-1-east",
+          questId: `friendship-success-${index}`,
+          eventTimestamp: `friendship-${index}`,
+        })
+      );
+      assert.equal(result.applied, true);
+    }
+
+    const firstUnlock = await unlockNpcFriendship("general");
+    assert.ok(firstUnlock);
+    assert.equal(firstUnlock?.npcId, "girl-1-east");
+    assert.equal(firstUnlock?.newlyUnlockedNpcId, "mirror-1-north");
+    assert.equal(firstUnlock?.rewardResults.length > 0, true);
+
+    const secondUnlock = await unlockNpcFriendship("general");
+    assert.equal(secondUnlock, null);
+
+    const friendshipState = await readJson(FRIENDSHIP_STATE_PATH);
+    assert.ok(friendshipState);
   });
 });
 

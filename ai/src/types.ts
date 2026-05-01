@@ -58,6 +58,7 @@ export interface RunSummary {
 
 export interface QuestCompletionPayload {
   character: string;
+  npcId?: string;
   questId: string;
   outcome: QuestOutcome;
   playerState: { level: number };
@@ -71,6 +72,7 @@ export interface QuestCompletionPayload {
   eventTimestamp?: string;
   runSummary?: RunSummary;
   memorySyncPending?: boolean;
+  friendshipEligible?: boolean;
 }
 
 export interface QuestRecord {
@@ -145,6 +147,11 @@ export interface CharacterMemory {
     dependency: number;
     instrumentalInterest: number;
   };
+  friendship?: {
+    npcId: string | null;
+    state: "locked" | "eligible" | "unlocked";
+    unlockedAt: string | null;
+  };
   flags: {
     playerNoticedRewardMismatch: boolean;
     recentFailure: boolean;
@@ -157,6 +164,76 @@ export interface CharacterMemory {
   };
   keyMemories: string[];
   lastTerminationReason: string | null;
+}
+
+export interface RewardPoolEntry {
+  itemId: string;
+  quantity: number;
+  grantMode: "guaranteed" | "chance";
+  chance?: number | null;
+}
+
+export interface FriendshipRewardResult {
+  itemId: string;
+  quantity: number;
+  granted: boolean;
+}
+
+export interface NpcProgressionRecord {
+  npcId: string;
+  characterName: string;
+  displayName: string;
+  archetype: string;
+  questCompletionCount: number;
+  friendshipState: "locked" | "eligible" | "unlocked";
+  friendshipUnlockedAt: string | null;
+  friendshipRewardGranted: boolean;
+  activeQuestSetId: string;
+  homePlacementId: string;
+  friendSummaryId: string | null;
+}
+
+export interface FriendSummary {
+  summaryId: string;
+  npcId: string;
+  displayName: string;
+  archetype: string;
+  friendshipState: "unlocked";
+  summaryText: string;
+  questHighlights: string[];
+  lastConversationAt: string;
+  updatedAt: string;
+}
+
+export interface FriendRosterResponse {
+  friends: FriendSummary[];
+  activeCount: number;
+  generatedAt: string;
+}
+
+export interface ActiveCharacterState {
+  activeNpcId: string;
+  starterNpcId: string;
+  unlockedNpcIds: string[];
+  completedNpcIds: string[];
+  pendingUnlockNpcId: string | null;
+  lastAdvancedAt: string | null;
+}
+
+export interface FriendshipStateStore {
+  activeCharacter: ActiveCharacterState;
+  npcProgressions: Record<string, NpcProgressionRecord>;
+  friendSummaries: Record<string, FriendSummary>;
+}
+
+export interface FriendshipUpdate {
+  npcId: string;
+  displayName: string;
+  friendshipState: "unlocked";
+  rewardResults: FriendshipRewardResult[];
+  rewardSummaryText: string;
+  newlyUnlockedNpcId: string | null;
+  friendSummaryPending: boolean;
 }
 
 export interface AuthoritativeState {

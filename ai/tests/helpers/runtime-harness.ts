@@ -1,7 +1,10 @@
 import fs from "fs/promises";
 import path from "path";
 import {
+  FRIENDSHIP_STATE_PATH,
   MEMORY_DIR,
+  QUESTS_PATH,
+  defaultFriendshipState,
   defaultPlayerProfile,
   defaultPlayerSummary,
   writeJsonAtomic,
@@ -55,12 +58,18 @@ export async function withMemoryIsolation<T>(fn: () => Promise<T>): Promise<T> {
     backupFile(PLAYER_PROFILE_PATH),
     backupFile(PLAYER_SUMMARY_PATH),
   ]);
+  const [friendshipBefore, questsBefore] = await Promise.all([
+    backupFile(FRIENDSHIP_STATE_PATH),
+    backupFile(QUESTS_PATH),
+  ]);
 
   await fs.mkdir(CHARACTERS_DIR, { recursive: true });
   await fs.writeFile(PENDING_PATH, "[]", "utf8");
   await fs.writeFile(PROCESSED_PATH, "[]", "utf8");
   await writeJsonAtomic(PLAYER_PROFILE_PATH, defaultPlayerProfile());
   await writeJsonAtomic(PLAYER_SUMMARY_PATH, defaultPlayerSummary());
+  await writeJsonAtomic(FRIENDSHIP_STATE_PATH, defaultFriendshipState());
+  await writeJsonAtomic(QUESTS_PATH, []);
 
   try {
     return await fn();
@@ -70,6 +79,8 @@ export async function withMemoryIsolation<T>(fn: () => Promise<T>): Promise<T> {
       restoreFile(PROCESSED_PATH, processedBefore),
       restoreFile(PLAYER_PROFILE_PATH, profileBefore),
       restoreFile(PLAYER_SUMMARY_PATH, summaryBefore),
+      restoreFile(FRIENDSHIP_STATE_PATH, friendshipBefore),
+      restoreFile(QUESTS_PATH, questsBefore),
     ]);
 
     // Remove any test-created character files and restore prior snapshots

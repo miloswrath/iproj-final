@@ -89,7 +89,8 @@ function makeFetchMock(
     }
 
     // notify loopback POSTs go to localhost:3000 by default — swallow as 200
-    if (urlStr.includes("/quest/start") || urlStr.includes("/quest/complete")) {
+    const pathname = new URL(urlStr).pathname;
+    if (pathname === "/quest/start" || pathname === "/quest/complete") {
       // route through real fetch only if pointed at our running server; tests
       // here don't subscribe SSE, so faking 200 is fine.
       return new Response("", { status: 200 });
@@ -274,6 +275,47 @@ test("C-5: POST /message after acceptance returns 410 session_terminated", async
           // entry is gone. The contract specifies 410 for a session "in" the
           // registry that has terminated. Both outcomes correctly block reuse.
           assert.ok(res.status === 410 || res.status === 404);
+        } finally {
+          await stop(ctx);
+        }
+      }
+    );
+  });
+});
+
+test("friendship-1: POST /start returns friendshipUpdate after a third completed quest arc", async () => {
+  await withMemoryIsolation(async () => {
+    await withMockedFetch(
+      makeFetchMock({ greeting: "hi.", reply: "You made it back." }),
+      async () => {
+        const ctx = await startEphemeral();
+        try {
+          for (let index = 0; index < 3; index += 1) {
+            const completeRes = await fetch(`${ctx.baseUrl}/api/v1/quest/complete`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                character: "general",
+                npcId: "girl-1-east",
+                questId: `general_friend_arc_${index}`,
+                outcome: "success",
+                rewardReceived: true,
+                playerLevel: 1,
+                eventTimestamp: `2026-05-01T00:00:0${index}.000Z`,
+              }),
+            });
+            assert.equal(completeRes.status, 200);
+          }
+
+          const startRes = await fetch(`${ctx.baseUrl}/api/v1/conversation/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ character: "general" }),
+          });
+          assert.equal(startRes.status, 201);
+          const body = await startRes.json();
+          assert.equal(body.friendshipUpdate?.npcId, "girl-1-east");
+          assert.equal(body.friendshipUpdate?.newlyUnlockedNpcId, "mirror-1-north");
         } finally {
           await stop(ctx);
         }

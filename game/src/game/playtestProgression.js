@@ -1,6 +1,7 @@
 import { INVENTORY_ITEM_DEFS, createInventoryEntry } from './ui/inventoryData';
 
 const INVENTORY_SLOTS = 15;
+const STORAGE_KEY = 'final.playtest.progression.v2';
 const EQUIPMENT_SLOT_DEFS = [
   { key: 'weapon', label: 'Weapon' },
   { key: 'armor', label: 'Armor' },
@@ -22,6 +23,22 @@ function createEmptyEquipmentSlots() {
   return EQUIPMENT_SLOT_DEFS.map((slot) => ({ ...slot, item: null }));
 }
 
+function defaultFriendshipState() {
+  return {
+    activeCharacter: {
+      activeNpcId: 'girl-1-east',
+      starterNpcId: 'girl-1-east',
+      unlockedNpcIds: ['girl-1-east'],
+      completedNpcIds: [],
+      pendingUnlockNpcId: null,
+      lastAdvancedAt: null,
+    },
+    friendRoster: [],
+    lastFriendUnlock: null,
+    postBattleReturnContext: null,
+  };
+}
+
 const progressionState = {
   playerCombat: {
     ...BASE_PLAYER_COMBAT,
@@ -39,7 +56,37 @@ const progressionState = {
   },
   lastReward: null,
   questRunState: null,
+  friendship: defaultFriendshipState(),
 };
+
+function canUseStorage() {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function saveProgressionState() {
+  if (!canUseStorage()) return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progressionState));
+  } catch {
+    // Best-effort persistence only.
+  }
+}
+
+function loadPersistedState() {
+  if (!canUseStorage()) return;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      Object.assign(progressionState, parsed);
+    }
+  } catch {
+    // Ignore malformed saved data.
+  }
+}
+
+loadPersistedState();
 
 function getProgressionLevel() {
   return Math.max(1, progressionState.totals.dungeonClears + 1);
@@ -55,7 +102,31 @@ function getLevelCombatFloor(level = getProgressionLevel()) {
   };
 }
 
+function normalizeFriendshipState() {
+  if (!progressionState.friendship || typeof progressionState.friendship !== 'object') {
+    progressionState.friendship = defaultFriendshipState();
+  }
+
+  const defaults = defaultFriendshipState();
+  progressionState.friendship.activeCharacter = {
+    ...defaults.activeCharacter,
+    ...(progressionState.friendship.activeCharacter ?? {}),
+  };
+
+  if (!Array.isArray(progressionState.friendship.activeCharacter.unlockedNpcIds)) {
+    progressionState.friendship.activeCharacter.unlockedNpcIds = ['girl-1-east'];
+  }
+  if (!Array.isArray(progressionState.friendship.activeCharacter.completedNpcIds)) {
+    progressionState.friendship.activeCharacter.completedNpcIds = [];
+  }
+  if (!Array.isArray(progressionState.friendship.friendRoster)) {
+    progressionState.friendship.friendRoster = [];
+  }
+}
+
 function normalizeInventoryState() {
+  normalizeFriendshipState();
+
   if (!progressionState.playerCombat || typeof progressionState.playerCombat !== 'object') {
     progressionState.playerCombat = {
       ...BASE_PLAYER_COMBAT,
@@ -146,6 +217,7 @@ function addInventoryQuantity(itemDef, quantity) {
   const existing = findInventoryEntry(itemDef.id);
   if (existing) {
     existing.quantity += quantity;
+    saveProgressionState();
     return;
   }
 
@@ -155,6 +227,7 @@ function addInventoryQuantity(itemDef, quantity) {
   }
 
   progressionState.inventory.items[emptySlotIndex] = createInventoryEntry(itemDef, quantity);
+  saveProgressionState();
 }
 
 export function getCombatUsableInventoryItems() {
@@ -191,6 +264,7 @@ export function consumeInventoryItem(itemId, quantity = 1) {
     if (item.quantity <= 0) {
       progressionState.inventory.items[index] = null;
     }
+    saveProgressionState();
     return true;
   }
 
@@ -200,12 +274,14 @@ export function consumeInventoryItem(itemId, quantity = 1) {
 export function setPlaytestPlayerHp(hp) {
   normalizeInventoryState();
   progressionState.playerCombat.hp = Math.max(0, Math.min(hp, progressionState.playerCombat.maxHp));
+  saveProgressionState();
   return progressionState.playerCombat.hp;
 }
 
 export function resetPlaytestPlayerHp() {
   normalizeInventoryState();
   progressionState.playerCombat.hp = progressionState.playerCombat.maxHp;
+  saveProgressionState();
   return progressionState.playerCombat.hp;
 }
 
@@ -286,6 +362,7 @@ export function claimChestRewards(chest, dungeonId = 'generated') {
     rewards,
     summaryText: rewards.map((reward) => `+${reward.quantity} ${reward.name}`).join(', '),
   };
+  saveProgressionState();
 
   return {
     granted: true,
@@ -304,6 +381,7 @@ export function recordDungeonClear(layoutState) {
   progressionState.totals.dungeonClears += 1;
   normalizeInventoryState();
   progressionState.playerCombat.hp = progressionState.playerCombat.maxHp;
+  saveProgressionState();
   return true;
 }
 
@@ -315,10 +393,12 @@ export function getQuestRunState() {
 
 export function setQuestRunState(state) {
   progressionState.questRunState = state;
+  saveProgressionState();
 }
 
 export function clearQuestRunState() {
   progressionState.questRunState = null;
+  saveProgressionState();
 }
 
 export function isQuestRunActive() {
@@ -330,6 +410,7 @@ export function advanceQuestRunFloor() {
   if (!state) return false;
   if (state.currentFloorIndex >= 2) return false;
   state.currentFloorIndex += 1;
+  saveProgressionState();
   return true;
 }
 
@@ -353,6 +434,7 @@ export function recordQuestFloorEnemyDefeated(enemyId) {
   if (!state.floorStats[floorKey]) state.floorStats[floorKey] = { enemiesDefeated: 0, chestsOpened: 0 };
   state.floorStats[floorKey].enemiesDefeated += 1;
   state.totalEnemiesDefeated = (state.totalEnemiesDefeated ?? 0) + 1;
+  saveProgressionState();
 }
 
 export function recordQuestFloorChestOpened() {
@@ -363,4 +445,122 @@ export function recordQuestFloorChestOpened() {
   if (!state.floorStats[key]) state.floorStats[key] = { enemiesDefeated: 0, chestsOpened: 0 };
   state.floorStats[key].chestsOpened += 1;
   state.totalChestsOpened = (state.totalChestsOpened ?? 0) + 1;
+  saveProgressionState();
+}
+
+// ─── Friendship Progression ───────────────────────────────────────────────────
+
+export function getFriendshipProgressionState() {
+  normalizeInventoryState();
+  return progressionState.friendship;
+}
+
+export function getActiveCharacterState() {
+  normalizeInventoryState();
+  return progressionState.friendship.activeCharacter;
+}
+
+export function setActiveCharacterState(activeCharacter) {
+  normalizeInventoryState();
+  progressionState.friendship.activeCharacter = {
+    ...progressionState.friendship.activeCharacter,
+    ...(activeCharacter ?? {}),
+  };
+  saveProgressionState();
+  return progressionState.friendship.activeCharacter;
+}
+
+export function getFriendRoster() {
+  normalizeInventoryState();
+  return progressionState.friendship.friendRoster;
+}
+
+export function setFriendRoster(friends) {
+  normalizeInventoryState();
+  progressionState.friendship.friendRoster = Array.isArray(friends) ? friends : [];
+  saveProgressionState();
+  return progressionState.friendship.friendRoster;
+}
+
+export function getLastFriendUnlock() {
+  normalizeInventoryState();
+  return progressionState.friendship.lastFriendUnlock;
+}
+
+export function setPostBattleReturnContext(context) {
+  normalizeInventoryState();
+  progressionState.friendship.postBattleReturnContext = context ?? null;
+  saveProgressionState();
+}
+
+export function getPostBattleReturnContext() {
+  normalizeInventoryState();
+  return progressionState.friendship.postBattleReturnContext ?? null;
+}
+
+export function clearPostBattleReturnContext() {
+  normalizeInventoryState();
+  progressionState.friendship.postBattleReturnContext = null;
+  saveProgressionState();
+}
+
+export function applyFriendshipRewards(rewardResults = []) {
+  normalizeInventoryState();
+  const granted = [];
+
+  for (const reward of rewardResults) {
+    if (!reward?.granted) continue;
+    const itemDef = inventoryItemDefsById.get(reward.itemId);
+    if (!itemDef) continue;
+    addInventoryQuantity(itemDef, reward.quantity ?? 1);
+    granted.push({
+      id: itemDef.id,
+      name: itemDef.name,
+      quantity: reward.quantity ?? 1,
+    });
+  }
+
+  if (granted.length > 0) {
+    progressionState.totals.rewardsEarned += granted.reduce((sum, reward) => sum + reward.quantity, 0);
+    progressionState.lastReward = {
+      dungeonId: 'friendship',
+      rewards: granted,
+      summaryText: granted.map((reward) => `+${reward.quantity} ${reward.name}`).join(', '),
+    };
+  }
+
+  saveProgressionState();
+  return granted;
+}
+
+export function applyFriendshipUpdate(update) {
+  normalizeInventoryState();
+  if (!update) return null;
+
+  const active = progressionState.friendship.activeCharacter;
+  if (!active.completedNpcIds.includes(update.npcId)) {
+    active.completedNpcIds.push(update.npcId);
+  }
+  if (!active.unlockedNpcIds.includes(update.npcId)) {
+    active.unlockedNpcIds.push(update.npcId);
+  }
+  if (update.newlyUnlockedNpcId) {
+    if (!active.unlockedNpcIds.includes(update.newlyUnlockedNpcId)) {
+      active.unlockedNpcIds.push(update.newlyUnlockedNpcId);
+    }
+    active.pendingUnlockNpcId = update.newlyUnlockedNpcId;
+    active.activeNpcId = update.newlyUnlockedNpcId;
+  } else {
+    active.pendingUnlockNpcId = null;
+    active.activeNpcId = update.npcId;
+  }
+  active.lastAdvancedAt = new Date().toISOString();
+
+  applyFriendshipRewards(update.rewardResults ?? []);
+  progressionState.friendship.lastFriendUnlock = {
+    ...update,
+    appliedAt: new Date().toISOString(),
+  };
+  saveProgressionState();
+  return progressionState.friendship.lastFriendUnlock;
 }

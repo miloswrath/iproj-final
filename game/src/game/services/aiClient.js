@@ -42,12 +42,12 @@ async function postJson(url, body) {
   return payload ?? {};
 }
 
-export async function startConversation(character, playerLevel = 1) {
+export async function startConversation(character, playerLevel = 1, npcId = null) {
   if (typeof character !== 'string' || !character.trim()) {
     throw new AiClientError('invalid_argument', 0, 'character must be a non-empty string');
   }
   const normalizedLevel = Number.isFinite(playerLevel) ? Math.max(1, Math.floor(playerLevel)) : 1;
-  return postJson(`${API_BASE}/start`, { character, playerLevel: normalizedLevel });
+  return postJson(`${API_BASE}/start`, { character, playerLevel: normalizedLevel, npcId });
 }
 
 export async function sendMessage(sessionId, text) {

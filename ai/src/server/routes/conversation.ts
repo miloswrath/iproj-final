@@ -11,6 +11,7 @@ import {
   saveQuestRecord,
   getCompletedQuestIds,
 } from "../../memory/store.js";
+import { unlockNpcFriendship } from "../../memory/friendship.js";
 import {
   detectAcceptance,
   detectQuestOffer,
@@ -114,6 +115,10 @@ async function handleStart(req: IncomingMessage, res: ServerResponse): Promise<v
   const { playerProfile, playerSummary, characterMemory } = await loadAllMemory(
     character.name
   );
+  const friendshipUpdate = await unlockNpcFriendship(character.name).catch((err) => {
+    console.error("[bridge] friendship unlock check failed:", err);
+    return null;
+  });
   const recentQuestIds = await getCompletedQuestIds(character.name, 3).catch(() => [] as string[]);
   const enrichedPrompt = buildEnrichedSystemPrompt(
     character.systemPrompt,
@@ -130,7 +135,9 @@ async function handleStart(req: IncomingMessage, res: ServerResponse): Promise<v
   try {
     greeting = await sendMessage(
       session,
-      "[system: introduce yourself briefly to the player]"
+      friendshipUpdate
+        ? "[system: acknowledge the player's new friendship briefly in character, mention trust, and invite future quests.]"
+        : "[system: introduce yourself briefly to the player]"
     );
   } catch (err) {
     if (isConnectionError(err)) {
@@ -162,6 +169,7 @@ async function handleStart(req: IncomingMessage, res: ServerResponse): Promise<v
     sessionId,
     character: character.name,
     greeting,
+    friendshipUpdate,
     conversationState: snapshotState(session.conversationState),
   });
 }

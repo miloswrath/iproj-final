@@ -188,3 +188,35 @@ test("C-10: POST /quest/complete increments and persists globalCharacterLevel on
     });
   });
 });
+
+test("C-10 sibling: third successful completion marks friendshipEligible true", async () => {
+  await withMemoryIsolation(async () => {
+    await withMockedFetch(quietFetchMock(), async () => {
+      const ctx = await startEphemeral();
+      try {
+        let finalBody = null;
+        for (let index = 0; index < 3; index += 1) {
+          const res = await fetch(`${ctx.baseUrl}/api/v1/quest/complete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              character: "general",
+              npcId: "girl-1-east",
+              questId: `general_L1_friendship_${index}`,
+              outcome: "success",
+              rewardReceived: true,
+              playerLevel: 1,
+              eventTimestamp: `2026-05-01T00:00:0${index}.000Z`,
+            }),
+          });
+          assert.equal(res.status, 200);
+          finalBody = await res.json();
+        }
+
+        assert.equal(finalBody?.friendshipEligible, true);
+      } finally {
+        await stop(ctx);
+      }
+    });
+  });
+});
