@@ -46,16 +46,35 @@ export async function fetchQuestCodex() {
   return data ?? { activeQuest: null, history: [], generatedAt: new Date().toISOString() };
 }
 
+export async function fetchFriendRoster() {
+  const data = await getJson(`${API_BASE}/friends`);
+  return data ?? { friends: [], activeCount: 0, generatedAt: new Date().toISOString() };
+}
+
+export async function fetchActiveCharacterState() {
+  const data = await getJson(`${API_BASE}/friends/active-character`);
+  return data ?? null;
+}
+
+export async function refreshFriendSummary({ npcId, trigger = 'post_friendship_conversation_exit', conversationId = null }) {
+  return await postJson(`${API_BASE}/friends/summary/refresh`, {
+    npcId,
+    trigger,
+    conversationId,
+  });
+}
+
 export async function fetchQuestHistory(limit = 20, includeActive = true) {
   const url = `${API_BASE}/quests/history?limit=${limit}&includeActive=${includeActive}`;
   const data = await getJson(url);
   return data?.entries ?? [];
 }
 
-export async function reportQuestComplete({ questId, character, outcome, rewardReceived = true, playerLevel = 1, runSummary }) {
+export async function reportQuestComplete({ questId, character, npcId = null, outcome, rewardReceived = true, playerLevel = 1, runSummary }) {
   const body = {
     questId,
     character,
+    npcId,
     outcome,
     rewardReceived,
     playerLevel,

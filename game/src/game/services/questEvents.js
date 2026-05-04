@@ -2,6 +2,8 @@ const SSE_URL = '/api/v1/events';
 
 let _lastQuestStartPayload = null;
 let _lastQuestCompletePayload = null;
+let _lastFriendUnlockPayload = null;
+let _lastFriendSummaryPayload = null;
 
 export function getLastQuestStartPayload() {
   return _lastQuestStartPayload;
@@ -11,10 +13,20 @@ export function getLastQuestCompletePayload() {
   return _lastQuestCompletePayload;
 }
 
+export function getLastFriendUnlockPayload() {
+  return _lastFriendUnlockPayload;
+}
+
+export function getLastFriendSummaryPayload() {
+  return _lastFriendSummaryPayload;
+}
+
 export class QuestEventStream {
   constructor() {
     this.startHandlers = new Set();
     this.completeHandlers = new Set();
+    this.friendUnlockHandlers = new Set();
+    this.friendSummaryHandlers = new Set();
     this.eventSource = null;
     this.connect();
   }
@@ -78,9 +90,43 @@ export class QuestEventStream {
     return () => this.completeHandlers.delete(handler);
   }
 
+  emitFriendUnlock(payload) {
+    _lastFriendUnlockPayload = payload;
+    for (const handler of this.friendUnlockHandlers) {
+      try {
+        handler(payload);
+      } catch (err) {
+        console.error('[questEvents] friend unlock handler threw:', err);
+      }
+    }
+  }
+
+  emitFriendSummaryUpdated(payload) {
+    _lastFriendSummaryPayload = payload;
+    for (const handler of this.friendSummaryHandlers) {
+      try {
+        handler(payload);
+      } catch (err) {
+        console.error('[questEvents] friend summary handler threw:', err);
+      }
+    }
+  }
+
+  onFriendUnlock(handler) {
+    this.friendUnlockHandlers.add(handler);
+    return () => this.friendUnlockHandlers.delete(handler);
+  }
+
+  onFriendSummaryUpdated(handler) {
+    this.friendSummaryHandlers.add(handler);
+    return () => this.friendSummaryHandlers.delete(handler);
+  }
+
   dispose() {
     this.startHandlers.clear();
     this.completeHandlers.clear();
+    this.friendUnlockHandlers.clear();
+    this.friendSummaryHandlers.clear();
     if (this.eventSource) {
       try {
         this.eventSource.close();

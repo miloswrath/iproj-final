@@ -16,6 +16,27 @@ export const npcs = [
     overworldTile: { x: 18, y: 12 },
     interactionRadius: 36,
     displayName: 'Girl',
+    questSetId: 'starter-field-quests',
+    rewardPool: [
+      { itemId: 'crystal-shard', quantity: 1, grantMode: 'guaranteed' },
+      { itemId: 'field-tonic', quantity: 2, grantMode: 'guaranteed' },
+    ],
+    unlocksNpcId: 'mirror-1-north',
+  },
+  {
+    id: 'mirror-1-north',
+    archetype: 'mirror',
+    spriteKey: 'npc-girl-1-idle',
+    portraitKey: 'npc-girl-1-dialogue',
+    overworldTile: { x: 33, y: 18 },
+    interactionRadius: 36,
+    displayName: 'Mirror',
+    questSetId: 'mirror-grove-quests',
+    rewardPool: [
+      { itemId: 'iron-ore', quantity: 1, grantMode: 'guaranteed' },
+      { itemId: 'field-tonic', quantity: 1, grantMode: 'chance', chance: 0.5 },
+    ],
+    unlocksNpcId: null,
   },
 ];
 

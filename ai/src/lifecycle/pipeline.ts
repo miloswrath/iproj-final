@@ -10,6 +10,7 @@ import {
   findQuestRecord,
   saveQuestRecord,
 } from "../memory/store.js";
+import { recordNpcQuestCompletion } from "../memory/friendship.js";
 import {
   applyQuestOutcomeToCharacterMemory,
   applyQuestOutcomeToPlayerProfile,
@@ -94,17 +95,18 @@ function validateQuestCompletionPayload(payload: QuestCompletionPayload): boolea
 export async function runQuestCompletionPipeline(
   session: Session,
   payload: QuestCompletionPayload
-): Promise<{ applied: boolean; reason: "applied" | "duplicate" | "invalid"; memorySyncPending: boolean }> {
+): Promise<{ applied: boolean; reason: "applied" | "duplicate" | "invalid"; memorySyncPending: boolean; friendshipEligible: boolean }> {
   if (!validateQuestCompletionPayload(payload)) {
-    return { applied: false, reason: "invalid", memorySyncPending: false };
+    return { applied: false, reason: "invalid", memorySyncPending: false, friendshipEligible: false };
   }
 
   const eventKey = completionEventKey(payload);
   if (await wasCompletionProcessed(eventKey)) {
-    return { applied: false, reason: "duplicate", memorySyncPending: false };
+    return { applied: false, reason: "duplicate", memorySyncPending: false, friendshipEligible: false };
   }
 
   let memorySyncPending = false;
+  let friendshipEligible = false;
 
   try {
     const { characterMemory, playerProfile, playerSummary } = await loadAllMemory(payload.character);
@@ -121,6 +123,19 @@ export async function runQuestCompletionPipeline(
   } catch (err) {
     console.error("[pipeline] memory sync failed, marking pending:", err);
     memorySyncPending = true;
+  }
+
+  try {
+    const friendship = await recordNpcQuestCompletion({
+      characterName: payload.character,
+      questId: payload.questId,
+      outcome: payload.outcome,
+      npcId: payload.npcId,
+    });
+    friendshipEligible = friendship.friendshipEligible;
+    payload.friendshipEligible = friendshipEligible;
+  } catch (err) {
+    console.error("[pipeline] friendship progression update failed:", err);
   }
 
   // Update quest record with completion state
@@ -142,12 +157,12 @@ export async function runQuestCompletionPipeline(
   }
 
   if (memorySyncPending) {
-    return { applied: true, reason: "applied", memorySyncPending: true };
+    return { applied: true, reason: "applied", memorySyncPending: true, friendshipEligible };
   }
 
   if (!(await wasCompletionProcessed(completionEventKey(payload)))) {
     await markCompletionProcessed(eventKey).catch(() => {});
   }
 
-  return { applied: true, reason: "applied", memorySyncPending: false };
+  return { applied: true, reason: "applied", memorySyncPending: false, friendshipEligible };
 }

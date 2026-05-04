@@ -31,6 +31,7 @@ async function handleQuestComplete(
 ): Promise<void> {
   let body: {
     character?: unknown;
+    npcId?: unknown;
     questId?: unknown;
     outcome?: unknown;
     rewardReceived?: unknown;
@@ -51,6 +52,7 @@ async function handleQuestComplete(
 
   const characterName =
     typeof body.character === "string" ? body.character.trim() : "";
+  const npcId = typeof body.npcId === "string" && body.npcId.trim().length > 0 ? body.npcId.trim() : undefined;
   const questId = typeof body.questId === "string" ? body.questId.trim() : "";
   const outcome = body.outcome;
   const rewardReceived = Boolean(body.rewardReceived);
@@ -109,6 +111,7 @@ async function handleQuestComplete(
 
   const payload: QuestCompletionPayload = {
     character: character.name,
+    npcId,
     questId,
     outcome: outcome as QuestOutcome,
     playerState: { level: playerLevel },
@@ -130,13 +133,19 @@ async function handleQuestComplete(
       await notifyQuestComplete({
         ...payload,
         memorySyncPending: result.memorySyncPending,
+        friendshipEligible: result.friendshipEligible,
       });
     } catch (err) {
       console.error("[bridge] notifyQuestComplete failed:", err);
     }
   }
 
-  sendJson(res, 200, { applied: result.applied, reason: result.reason, memorySyncPending: result.memorySyncPending });
+  sendJson(res, 200, {
+    applied: result.applied,
+    reason: result.reason,
+    memorySyncPending: result.memorySyncPending,
+    friendshipEligible: result.friendshipEligible,
+  });
 }
 
 export function register(server: Server): void {

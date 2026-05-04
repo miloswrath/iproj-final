@@ -5,6 +5,7 @@ import {
   sendMessage,
   startConversation,
 } from '../services/aiClient.js';
+import { refreshFriendSummary } from '../services/questRunClient.js';
 import { getActiveArchetype } from '../npc/npcConfig.js';
 import { getPlaytestLevel } from '../playtestProgression.js';
 
@@ -44,6 +45,7 @@ export class ConversationOverlay {
     this.errorMessage = null;
     this.autoCloseTimer = null;
     this._generation = 0;
+    this.pendingFriendshipUpdate = null;
 
     this.escKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.upKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
@@ -301,6 +303,7 @@ export class ConversationOverlay {
     this.terminated = false;
     this.errorMessage = null;
     this.awaiting = false;
+    this.pendingFriendshipUpdate = null;
     this.cancelAutoClose();
 
     this.nameLabel.setText(npc.displayName ?? 'NPC');
@@ -342,9 +345,17 @@ export class ConversationOverlay {
     this.awaiting = true;
     this.refresh();
     try {
-      const response = await startConversation(archetype || this.npc?.archetype || 'general', getPlaytestLevel());
+      const response = await startConversation(
+        archetype || this.npc?.archetype || 'general',
+        getPlaytestLevel(),
+        this.npc?.id ?? null,
+      );
       if (this._generation !== gen) return;
       this.sessionId = response.sessionId;
+      this.pendingFriendshipUpdate = response.friendshipUpdate ?? null;
+      if (this.pendingFriendshipUpdate && typeof this.scene.handleFriendshipUpdate === 'function') {
+        this.scene.handleFriendshipUpdate(this.pendingFriendshipUpdate);
+      }
       if (response.greeting) {
         this.appendLine('npc', response.greeting);
       }
@@ -543,6 +554,7 @@ export class ConversationOverlay {
   close() {
     if (!this.isOpen) return;
     const sessionId = this.sessionId;
+    const pendingFriendshipUpdate = this.pendingFriendshipUpdate;
     this.isOpen = false;
     this.cancelAutoClose();
     this.setVisible(false);
@@ -550,15 +562,34 @@ export class ConversationOverlay {
       this.inputElement.value = '';
       try { this.inputElement.blur(); } catch { /* ignore */ }
     }
+    const finishClose = () => {
+      if (pendingFriendshipUpdate?.friendSummaryPending && pendingFriendshipUpdate?.npcId) {
+        refreshFriendSummary({
+          npcId: pendingFriendshipUpdate.npcId,
+          trigger: 'post_friendship_conversation_exit',
+          conversationId: sessionId,
+        }).then((response) => {
+          if (response?.applied && typeof this.scene.handleFriendSummaryUpdated === 'function') {
+            this.scene.handleFriendSummaryUpdated(pendingFriendshipUpdate.npcId);
+          }
+        }).catch(() => {
+          // Summary refresh is non-blocking.
+        });
+      }
+    };
+
     if (sessionId && !this.terminated) {
-      endConversation(sessionId, 'exit').catch(() => {
-        // best effort — ignore
+      endConversation(sessionId, 'exit').then(finishClose).catch(() => {
+        finishClose();
       });
+    } else {
+      finishClose();
     }
     this.sessionId = null;
     this.lines = [];
     this.terminated = false;
     this.errorMessage = null;
     this.awaiting = false;
+    this.pendingFriendshipUpdate = null;
   }
 }

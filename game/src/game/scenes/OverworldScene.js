@@ -1,13 +1,27 @@
 import Phaser from 'phaser';
-import { createOverworldLayout, TileKinds } from '../overworld/overworldLayout';
+import { createOverworldLayout, FRIEND_NPC_ANCHORS, TileKinds, worldFromTile } from '../overworld/overworldLayout';
 import { DeveloperModeController } from '../editor/DeveloperModeController';
 import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
 import { InventoryOverlay } from '../ui/InventoryOverlay';
 import { ConversationOverlay } from '../ui/ConversationOverlay';
+import { FriendRosterOverlay } from '../ui/FriendRosterOverlay';
 import { LoreCodexOverlay } from '../ui/LoreCodexOverlay';
 import { HUDController } from '../ui/HUDController';
-import { getPlaytestInventoryState, getPlaytestProgressionSummary, setQuestRunState, clearQuestRunState, isQuestRunActive } from '../playtestProgression';
+import {
+  applyFriendshipUpdate,
+  clearPostBattleReturnContext,
+  getActiveCharacterState,
+  getPlaytestInventoryState,
+  getPlaytestProgressionSummary,
+  setActiveCharacterState,
+  setFriendRoster,
+  setPostBattleReturnContext,
+  setQuestRunState,
+  clearQuestRunState,
+} from '../playtestProgression';
+import { resolveNpcConfig } from '../npc/npcConfig';
 import { QuestEventStream, getLastQuestStartPayload } from '../services/questEvents';
+import { fetchActiveCharacterState, fetchFriendRoster } from '../services/questRunClient';
 import { spawnQuestToast } from '../ui/QuestToast';
 
 const PLAYER_SPEED = 180;
@@ -32,10 +46,17 @@ export class OverworldScene extends Phaser.Scene {
     this.questPortalLabel = null;
     this.questEventStream = new QuestEventStream();
     this.codexOverlay = null;
+    this.friendOverlay = null;
 
     // If returning from completed quest run, clear run state
     if (data?.questCompleted) {
       clearQuestRunState();
+    }
+
+    if (data?.postBattleReturnContext) {
+      setPostBattleReturnContext(data.postBattleReturnContext);
+    } else if (data?.questCompleted || data?.dungeonCompletionStatus === 'failed') {
+      clearPostBattleReturnContext();
     }
 
     this.layout = createOverworldLayout();
@@ -222,6 +243,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // C key opens lore codex
     this.codexKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    this.friendKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
 
     if (data?.questCompleted && data?.questTitle) {
       spawnQuestToast(this, {
@@ -233,10 +255,13 @@ export class OverworldScene extends Phaser.Scene {
 
     this.events.once('shutdown', () => {
       if (this.conversationOverlay) { this.conversationOverlay.destroy(); this.conversationOverlay = null; }
+      if (this.friendOverlay) { this.friendOverlay.destroy(); this.friendOverlay = null; }
       if (this.hud) { this.hud.destroy(); this.hud = null; }
       if (this._unsubQuestStart) { this._unsubQuestStart(); this._unsubQuestStart = null; }
       if (this.questEventStream) { this.questEventStream.dispose(); this.questEventStream = null; }
     });
+
+    this.syncBridgeFriendshipState();
   }
 
   update() {
@@ -288,8 +313,28 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    if (this.friendOverlay?.isOpen) {
+      if (Phaser.Input.Keyboard.JustDown(this.friendKey)) {
+        this.friendOverlay.close();
+      }
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.codexKey)) {
       this.getCodexOverlay().open();
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.friendKey)) {
+      this.getFriendOverlay().open();
       this.player.setVelocity(0, 0);
       this.player.anims.stop();
       this.player.setFrame(this.getIdleFrame(this.lastDirection));
@@ -907,7 +952,14 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   renderAiNpcs() {
-    const npcs = this.layout.aiNpcs ?? [];
+    if (this.aiNpcs?.length) {
+      for (const entry of this.aiNpcs) {
+        entry.shadow?.destroy();
+        entry.prompt?.destroy();
+        entry.sprite?.destroy();
+      }
+    }
+    const npcs = this.getRenderableFriendNpcs();
     this.aiNpcs = [];
 
     for (const npc of npcs) {
@@ -928,7 +980,7 @@ export class OverworldScene extends Phaser.Scene {
         });
       }
 
-      this.add.ellipse(worldX, worldY + 18, 36, 14, 0x000000, 0.28).setDepth(worldY + 105);
+      const shadow = this.add.ellipse(worldX, worldY + 18, 36, 14, 0x000000, 0.28).setDepth(worldY + 105);
       const sprite = this.add
         .sprite(worldX, worldY, npc.spriteKey, 0)
         .setDepth(worldY + 120)
@@ -947,7 +999,7 @@ export class OverworldScene extends Phaser.Scene {
         .setDepth(worldY + 130)
         .setVisible(false);
 
-      this.aiNpcs.push({ config: npc, sprite, prompt, worldX, worldY });
+      this.aiNpcs.push({ config: npc, sprite, prompt, shadow, worldX, worldY });
     }
   }
 
@@ -963,6 +1015,98 @@ export class OverworldScene extends Phaser.Scene {
       this.codexOverlay = new LoreCodexOverlay(this);
     }
     return this.codexOverlay;
+  }
+
+  getFriendOverlay() {
+    if (!this.friendOverlay) {
+      this.friendOverlay = new FriendRosterOverlay(this);
+    }
+    return this.friendOverlay;
+  }
+
+  getRenderableFriendNpcs() {
+    const active = getActiveCharacterState();
+    const completed = new Set(active.completedNpcIds ?? []);
+    const renderables = [];
+    const usedPlacements = new Set();
+
+    const pushRenderable = (npcId, placement) => {
+      if (!npcId || !placement || usedPlacements.has(placement.placementId)) return;
+      const config = resolveNpcConfig(npcId);
+      if (!config) return;
+      usedPlacements.add(placement.placementId);
+      renderables.push({
+        ...config,
+        placementId: placement.placementId,
+        placementRole: placement.placementRole,
+        world: worldFromTile(placement.tile),
+      });
+    };
+
+    let completedIndex = 0;
+    for (const npcId of completed) {
+      pushRenderable(npcId, FRIEND_NPC_ANCHORS.completed[completedIndex] ?? FRIEND_NPC_ANCHORS.completed.at(-1));
+      completedIndex += 1;
+    }
+
+    const pendingUnlockNpcId = active.pendingUnlockNpcId ?? null;
+    if (pendingUnlockNpcId && !completed.has(pendingUnlockNpcId)) {
+      pushRenderable(pendingUnlockNpcId, FRIEND_NPC_ANCHORS.unlocked[0]);
+    } else if (active.activeNpcId && !completed.has(active.activeNpcId)) {
+      pushRenderable(active.activeNpcId, FRIEND_NPC_ANCHORS.active[0]);
+    }
+
+    return renderables;
+  }
+
+  async syncBridgeFriendshipState() {
+    try {
+      const [activeCharacter, roster] = await Promise.all([
+        fetchActiveCharacterState(),
+        fetchFriendRoster(),
+      ]);
+      if (activeCharacter) {
+        setActiveCharacterState(activeCharacter);
+      }
+      if (roster?.friends) {
+        setFriendRoster(roster.friends);
+      }
+      this.renderAiNpcs();
+    } catch {
+      // Best-effort sync; local state remains usable offline.
+    }
+  }
+
+  handleFriendshipUpdate(update) {
+    const applied = applyFriendshipUpdate(update);
+    if (applied?.rewardSummaryText) {
+      this.rewardSummaryText = applied.rewardSummaryText;
+      this.rewardLabel?.setText(`Latest reward: ${applied.rewardSummaryText}`);
+    }
+    this.renderAiNpcs();
+    this.questEventStream?.emitFriendUnlock?.(update);
+    spawnQuestToast(this, {
+      kind: 'quest_complete',
+      title: `${update.displayName} became a friend`,
+      bodyLine: update.newlyUnlockedNpcId
+        ? 'A new character is waiting somewhere in the overworld.'
+        : 'Friendship rewards granted.',
+    });
+  }
+
+  async handleFriendSummaryUpdated(_npcId) {
+    try {
+      const roster = await fetchFriendRoster();
+      if (roster?.friends) {
+        setFriendRoster(roster.friends);
+        this.questEventStream?.emitFriendSummaryUpdated?.({
+          npcId: _npcId,
+          deferredResolved: false,
+        });
+      }
+    } catch {
+      // Non-blocking UI refresh.
+    }
   }
 
   onQuestStarted(payload) {
@@ -1038,13 +1182,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   activateCompanionFollow() {
-    // Enable companion follow on the first AI NPC sprite found
-    if (!this.aiNpcs?.length) return;
-    const npcEntry = this.aiNpcs[0];
-    if (!npcEntry?.sprite) return;
-    this.companionFollowActive = true;
-    this.companionFollowSprite = npcEntry.sprite;
-    this.companionFollowSprite.setDepth(500);
+    this.companionFollowActive = false;
+    this.companionFollowSprite = null;
   }
 
   updateCompanionFollow() {

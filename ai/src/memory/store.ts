@@ -3,6 +3,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import type {
   CharacterMemory,
+  FriendshipStateStore,
+  FriendSummary,
+  NpcProgressionRecord,
   PlayerProfile,
   PlayerSummary,
   QuestRecord,
@@ -12,7 +15,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const MEMORY_DIR = path.resolve(__dirname, "../../memory");
 const CHARACTERS_DIR = path.join(MEMORY_DIR, "characters");
 const PROCESSED_COMPLETIONS_PATH = path.join(MEMORY_DIR, "processed-completions.json");
-const QUESTS_PATH = path.join(MEMORY_DIR, "quests.json");
+export const QUESTS_PATH = path.join(MEMORY_DIR, "quests.json");
+export const FRIENDSHIP_STATE_PATH = path.join(MEMORY_DIR, "friendship-state.json");
 
 export async function ensureMemoryDirs(): Promise<void> {
   await fs.mkdir(CHARACTERS_DIR, { recursive: true });
@@ -128,9 +132,120 @@ export function defaultCharacterMemory(
       currentTactic: "Establish initial rapport.",
       tension: "None yet.",
     },
+    friendship: {
+      npcId: null,
+      state: "locked",
+      unlockedAt: null,
+    },
     keyMemories: [],
     lastTerminationReason: null,
   };
+}
+
+export function defaultFriendshipState(): FriendshipStateStore {
+  return {
+    activeCharacter: {
+      activeNpcId: "girl-1-east",
+      starterNpcId: "girl-1-east",
+      unlockedNpcIds: ["girl-1-east"],
+      completedNpcIds: [],
+      pendingUnlockNpcId: null,
+      lastAdvancedAt: null,
+    },
+    npcProgressions: {},
+    friendSummaries: {},
+  };
+}
+
+function normalizeNpcProgressionRecord(record: Partial<NpcProgressionRecord> | undefined, npcId: string): NpcProgressionRecord | null {
+  if (!record || typeof record.characterName !== "string" || typeof record.displayName !== "string" || typeof record.archetype !== "string") {
+    return null;
+  }
+
+  return {
+    npcId,
+    characterName: record.characterName,
+    displayName: record.displayName,
+    archetype: record.archetype,
+    questCompletionCount:
+      typeof record.questCompletionCount === "number" && Number.isFinite(record.questCompletionCount)
+        ? Math.max(0, Math.floor(record.questCompletionCount))
+        : 0,
+    friendshipState:
+      record.friendshipState === "eligible" || record.friendshipState === "unlocked"
+        ? record.friendshipState
+        : "locked",
+    friendshipUnlockedAt:
+      typeof record.friendshipUnlockedAt === "string" && record.friendshipUnlockedAt.length > 0
+        ? record.friendshipUnlockedAt
+        : null,
+    friendshipRewardGranted: record.friendshipRewardGranted === true,
+    activeQuestSetId: typeof record.activeQuestSetId === "string" ? record.activeQuestSetId : `${npcId}-quests`,
+    homePlacementId: typeof record.homePlacementId === "string" ? record.homePlacementId : `${npcId}-home`,
+    friendSummaryId: typeof record.friendSummaryId === "string" && record.friendSummaryId.length > 0 ? record.friendSummaryId : null,
+  };
+}
+
+function normalizeFriendSummary(summary: Partial<FriendSummary> | undefined): FriendSummary | null {
+  if (!summary || typeof summary.summaryId !== "string" || typeof summary.npcId !== "string" || typeof summary.displayName !== "string" || typeof summary.archetype !== "string" || typeof summary.summaryText !== "string") {
+    return null;
+  }
+
+  return {
+    summaryId: summary.summaryId,
+    npcId: summary.npcId,
+    displayName: summary.displayName,
+    archetype: summary.archetype,
+    friendshipState: "unlocked",
+    summaryText: summary.summaryText || `${summary.displayName} trusts the player.`,
+    questHighlights: Array.isArray(summary.questHighlights) ? summary.questHighlights.filter((value): value is string => typeof value === "string") : [],
+    lastConversationAt: typeof summary.lastConversationAt === "string" ? summary.lastConversationAt : new Date(0).toISOString(),
+    updatedAt: typeof summary.updatedAt === "string" ? summary.updatedAt : new Date(0).toISOString(),
+  };
+}
+
+function normalizeFriendshipState(raw: Partial<FriendshipStateStore> | null | undefined): FriendshipStateStore {
+  const defaults = defaultFriendshipState();
+  const npcProgressions: Record<string, NpcProgressionRecord> = {};
+  const friendSummaries: Record<string, FriendSummary> = {};
+
+  for (const [npcId, record] of Object.entries(raw?.npcProgressions ?? {})) {
+    const normalized = normalizeNpcProgressionRecord(record, npcId);
+    if (normalized) {
+      npcProgressions[npcId] = normalized;
+    }
+  }
+
+  for (const [npcId, summary] of Object.entries(raw?.friendSummaries ?? {})) {
+    const normalized = normalizeFriendSummary(summary);
+    if (normalized) {
+      friendSummaries[npcId] = normalized;
+    }
+  }
+
+  const active = raw?.activeCharacter;
+
+  return {
+    activeCharacter: {
+      activeNpcId: typeof active?.activeNpcId === "string" && active.activeNpcId.length > 0 ? active.activeNpcId : defaults.activeCharacter.activeNpcId,
+      starterNpcId: typeof active?.starterNpcId === "string" && active.starterNpcId.length > 0 ? active.starterNpcId : defaults.activeCharacter.starterNpcId,
+      unlockedNpcIds: Array.isArray(active?.unlockedNpcIds) ? active.unlockedNpcIds.filter((value): value is string => typeof value === "string") : defaults.activeCharacter.unlockedNpcIds,
+      completedNpcIds: Array.isArray(active?.completedNpcIds) ? active.completedNpcIds.filter((value): value is string => typeof value === "string") : [],
+      pendingUnlockNpcId: typeof active?.pendingUnlockNpcId === "string" && active.pendingUnlockNpcId.length > 0 ? active.pendingUnlockNpcId : null,
+      lastAdvancedAt: typeof active?.lastAdvancedAt === "string" ? active.lastAdvancedAt : null,
+    },
+    npcProgressions,
+    friendSummaries,
+  };
+}
+
+export async function loadFriendshipState(): Promise<FriendshipStateStore> {
+  const stored = await readJson<FriendshipStateStore>(FRIENDSHIP_STATE_PATH);
+  return normalizeFriendshipState(stored);
+}
+
+export async function saveFriendshipState(state: FriendshipStateStore): Promise<void> {
+  await writeJsonAtomic(FRIENDSHIP_STATE_PATH, state);
 }
 
 export async function loadAllMemory(characterName: string): Promise<{

@@ -191,6 +191,22 @@ const LANDMARK_CELLS = [
   { x: 68, y: 31, label: 'Dungeon Shrine' },
 ];
 
+export const FRIEND_NPC_ANCHORS = {
+  active: [
+    { placementId: 'field-active-east', tile: { x: 18, y: 12 }, mapRegion: 'field', placementRole: 'active' },
+    { placementId: 'field-active-north', tile: { x: 33, y: 18 }, mapRegion: 'field', placementRole: 'active' },
+  ],
+  unlocked: [
+    { placementId: 'field-unlocked-north', tile: { x: 33, y: 18 }, mapRegion: 'field', placementRole: 'unlocked' },
+    { placementId: 'field-unlocked-pond', tile: { x: 41, y: 16 }, mapRegion: 'field', placementRole: 'unlocked' },
+  ],
+  completed: [
+    { placementId: 'town-square-east', tile: { x: 58, y: 18 }, mapRegion: 'town', placementRole: 'completed' },
+    { placementId: 'town-square-west', tile: { x: 55, y: 14 }, mapRegion: 'town', placementRole: 'completed' },
+    { placementId: 'town-square-north', tile: { x: 67, y: 11 }, mapRegion: 'town', placementRole: 'completed' },
+  ],
+};
+
 const TOWN_NPCS = [
   { x: 56, y: 12, role: 'blacksmith-stall', sprite: 'swordsman-idle', frame: 0, scale: 1.18, markerColor: 0xf1ba84 },
   { x: 62, y: 11, role: 'scribe', sprite: 'swordsman-idle', frame: 1, scale: 1.16, markerColor: 0xd5c8ff },
@@ -535,6 +551,10 @@ export function createOverworldLayout() {
     landmarks: LANDMARK_CELLS,
     criticalPathCells,
   };
+}
+
+export function worldFromTile(tile) {
+  return toWorld(tile.x, tile.y);
 }
 
 export const TileKinds = {

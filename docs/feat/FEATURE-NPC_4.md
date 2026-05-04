@@ -29,7 +29,7 @@
 - After the first character is completed, a new menu (similar to codex) should spawn with the ability to view active friends and have a short summary of quests and conversations with them (this AI summary should run on exit of the conversation after finishing the third quest)
 
 **Other Requirements**:
-- After a character is completed, they now spawn in the town.
+- After a character is completed, they now spawn in the town (do not spawn characters on top of each other)
 - The next character now spawns in a unique location on the map
 - Toast instructs user to find the new characters
 - General is no longer the blank character, start with a random character:

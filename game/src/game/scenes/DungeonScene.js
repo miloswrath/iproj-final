@@ -7,6 +7,7 @@ import { InventoryOverlay } from '../ui/InventoryOverlay';
 import { INVENTORY_ITEM_DEFS } from '../ui/inventoryData';
 import {
   claimChestRewards,
+  getActiveCharacterState,
   getPlaytestCombatantState,
   getPlaytestInventoryState,
   getPlaytestLevel,
@@ -2294,6 +2295,7 @@ export class DungeonScene extends Phaser.Scene {
         dungeonSpawnX: this.player.x,
         dungeonSpawnY: this.player.y,
         defeatedEnemyId: enemy?.enemyId ?? null,
+        activeNpcId: getActiveCharacterState().activeNpcId,
       },
     });
   }
@@ -2550,6 +2552,7 @@ export class DungeonScene extends Phaser.Scene {
       reportQuestComplete({
         questId: runState.questId,
         character: runState.character,
+        npcId: getActiveCharacterState().activeNpcId,
         outcome: 'success',
         rewardReceived: true,
         playerLevel: 1,
