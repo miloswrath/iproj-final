@@ -179,7 +179,9 @@ export class PreloadScene extends Phaser.Scene {
   create() {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('mode');
-    const startScene = mode === 'asset-canvas' ? 'asset-canvas' : 'overworld';
+    const startScene = mode === 'asset-canvas' || params.get('skipTitle') === '1'
+      ? (mode === 'asset-canvas' ? 'asset-canvas' : 'overworld')
+      : 'title';
     this.scene.start(startScene);
   }
 }

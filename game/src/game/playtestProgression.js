@@ -99,30 +99,34 @@ function defaultFriendshipState() {
   };
 }
 
-const progressionState = {
-  playerCombat: {
-    ...BASE_PLAYER_COMBAT,
-    hp: BASE_PLAYER_COMBAT.maxHp,
-  },
-  inventory: {
-    slots: INVENTORY_SLOTS,
-    items: createEmptyInventorySlots(),
-    equipmentSlots: createEmptyEquipmentSlots(),
-  },
-  upgrades: {
-    claws: 0,
-    ward: 0,
-    guard: 0,
-  },
-  totals: {
-    dungeonClears: 0,
-    chestsOpened: 0,
-    rewardsEarned: 0,
-  },
-  lastReward: null,
-  questRunState: null,
-  friendship: defaultFriendshipState(),
-};
+function createDefaultProgressionState() {
+  return {
+    playerCombat: {
+      ...BASE_PLAYER_COMBAT,
+      hp: BASE_PLAYER_COMBAT.maxHp,
+    },
+    inventory: {
+      slots: INVENTORY_SLOTS,
+      items: createEmptyInventorySlots(),
+      equipmentSlots: createEmptyEquipmentSlots(),
+    },
+    upgrades: {
+      claws: 0,
+      ward: 0,
+      guard: 0,
+    },
+    totals: {
+      dungeonClears: 0,
+      chestsOpened: 0,
+      rewardsEarned: 0,
+    },
+    lastReward: null,
+    questRunState: null,
+    friendship: defaultFriendshipState(),
+  };
+}
+
+const progressionState = createDefaultProgressionState();
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -311,6 +315,16 @@ export function getPlaytestProgressionSummary() {
     upgrades: { ...progressionState.upgrades },
     combat: { ...progressionState.playerCombat },
   };
+}
+
+export function resetPlaytestProgressionState() {
+  const freshState = createDefaultProgressionState();
+  for (const key of Object.keys(progressionState)) {
+    delete progressionState[key];
+  }
+  Object.assign(progressionState, freshState);
+  saveProgressionState();
+  return getPlaytestProgressionSummary();
 }
 
 const inventoryItemDefsById = new Map(Object.values(INVENTORY_ITEM_DEFS).map((item) => [item.id, item]));

@@ -340,6 +340,9 @@ export class DungeonScene extends Phaser.Scene {
     this.debugFeedbackTimer = null;
     this.combatStarting = false;
     this.dungeonDebugHudVisible = false;
+    const params = new URLSearchParams(window.location.search);
+    this.devModeEnabled = params.get('devMode') === '1';
+    this.lowerHudY = Math.max(180, this.scale.height - 112);
 
     if (this.questRunMode && questRunState) {
       const floorId = questRunState.floorIds[questRunState.currentFloorIndex];
@@ -375,15 +378,17 @@ export class DungeonScene extends Phaser.Scene {
     this.createExitPortal(spawnPosition);
     this.addInstructionHud();
     this.updateEncounterUi();
-    this.devModeController = new DeveloperModeController(this, {
-      sceneLabel: 'Dungeon',
-      tileSize: TILE_SIZE,
-      cols: GRID_COLS,
-      rows: GRID_ROWS,
-      worldWidth: DUNGEON_WIDTH,
-      worldHeight: DUNGEON_HEIGHT,
-      registry: loadDevAssetRegistry('dungeon', this.textures),
-    });
+    this.devModeController = this.devModeEnabled
+      ? new DeveloperModeController(this, {
+        sceneLabel: 'Dungeon',
+        tileSize: TILE_SIZE,
+        cols: GRID_COLS,
+        rows: GRID_ROWS,
+        worldWidth: DUNGEON_WIDTH,
+        worldHeight: DUNGEON_HEIGHT,
+        registry: loadDevAssetRegistry('dungeon', this.textures),
+      })
+      : null;
     this.inventoryOverlay = new InventoryOverlay(this, getPlaytestInventoryState(), {
       title: 'Dungeon Pack',
       subtitle: 'I / Tab toggle | Arrow keys browse | Inventory pauses movement only',
@@ -482,7 +487,7 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     this.add
-      .text(16, 40, 'E open chest | R next layout | [/] swap dungeon | type dungeon number | Q return overworld', {
+      .text(16, 40, 'E opens chests and exit portals | Q returns to overworld', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#c9ddff',
@@ -493,7 +498,7 @@ export class DungeonScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     this.debugFeedbackLabel = this.add
-      .text(16, 68, '', {
+      .text(16, this.lowerHudY - 48, '', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#ffe7a3',
@@ -505,7 +510,7 @@ export class DungeonScene extends Phaser.Scene {
       .setVisible(false);
 
     this.statusLabel = this.add
-      .text(16, 96, '', {
+      .text(16, this.lowerHudY, '', {
         fontFamily: 'monospace',
         fontSize: '15px',
         color: '#d9ffb8',
@@ -528,7 +533,7 @@ export class DungeonScene extends Phaser.Scene {
       .setVisible(false);
 
     this.layoutLabel = this.add
-      .text(16, 124, '', {
+      .text(16, 152, '', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffdca6',
@@ -540,7 +545,7 @@ export class DungeonScene extends Phaser.Scene {
       .setVisible(false);
 
     this.chaseDebugLabel = this.add
-      .text(16, 152, 'Roaming enemies chase when they see you in a straight hall/room line', {
+      .text(16, 180, 'Roaming enemies chase when they see you in a straight hall/room line', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffe7a3',
@@ -553,7 +558,7 @@ export class DungeonScene extends Phaser.Scene {
 
     const progressionSummary = getPlaytestProgressionSummary();
     this.progressionDebugLabel = this.add
-      .text(16, 180, `Progression seed: level ${progressionSummary.level} | ${progressionSummary.rewardsEarned} loot earned`, {
+      .text(16, 208, `Progression seed: level ${progressionSummary.level} | ${progressionSummary.rewardsEarned} loot earned`, {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#b9ffd8',
@@ -567,7 +572,7 @@ export class DungeonScene extends Phaser.Scene {
 
   createChestUi() {
     this.chestPrompt = this.add
-      .text(16, 68, 'Press E to open chest', {
+      .text(16, this.lowerHudY - 72, 'Press E to open chest', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#fff1ad',
@@ -579,7 +584,7 @@ export class DungeonScene extends Phaser.Scene {
       .setVisible(false);
 
     this.exitPortalPrompt = this.add
-      .text(16, 68, 'Press E to exit dungeon', {
+      .text(16, this.lowerHudY - 72, 'Press E to exit dungeon', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#d6f0ff',
@@ -591,7 +596,7 @@ export class DungeonScene extends Phaser.Scene {
       .setVisible(false);
 
     this.chestRewardLabel = this.add
-      .text(16, 96, 'Latest chest reward: none yet', {
+      .text(16, this.lowerHudY + 24, 'Latest chest reward: none yet', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#c8ffbc',
@@ -1674,7 +1679,7 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   update() {
-    if (Phaser.Input.Keyboard.JustDown(this.debugHudKey)) {
+    if (this.devModeEnabled && Phaser.Input.Keyboard.JustDown(this.debugHudKey)) {
       this.setDungeonDebugHudVisible(!this.dungeonDebugHudVisible);
     }
 
@@ -1706,7 +1711,7 @@ export class DungeonScene extends Phaser.Scene {
       return;
     }
 
-    if (this.handleDebugActions()) {
+    if (this.devModeEnabled && this.handleDebugActions()) {
       return;
     }
 

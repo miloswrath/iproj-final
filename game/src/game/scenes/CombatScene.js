@@ -454,11 +454,11 @@ export class CombatScene extends Phaser.Scene {
       .on('pointerdown', () => this.resolveReturn())
       .setVisible(false);
 
-    this.helpText = this.add.text(panelLeft + 34, this.ui.helpTop, '1 Strike | 2 Heavy | 3 Item | 4 Defend. Arrow keys + Enter drive battle items. Esc closes the item list.', {
+    this.helpText = this.add.text(panelLeft + 34, this.ui.helpTop, 'Strike is reliable. Heavy hits harder and recharges. Item heals from the battle pack. Defend reduces the next hit.', {
       fontFamily: 'monospace',
       fontSize: `${helpSize}px`,
       color: '#c8ccdc',
-      wordWrap: { width: panelWidth - 80 },
+      wordWrap: { width: this.ui.itemLeft - panelLeft - 74 },
     });
   }
 
@@ -970,7 +970,7 @@ export class CombatScene extends Phaser.Scene {
         .setBackgroundColor(selected ? '#567cc1' : '#24314d');
 
       if (action === 'heavy') {
-        button.setText(this.heavyStrikeCooldown > 0 ? `2) Heavy ${this.heavyStrikeCooldown}` : '2) Heavy');
+        button.setText(this.heavyStrikeCooldown > 0 ? `2) Heavy (${this.heavyStrikeCooldown})` : '2) Heavy');
       }
     });
 
