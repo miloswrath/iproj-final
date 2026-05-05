@@ -20,6 +20,7 @@ import {
 } from "../../lifecycle/detector.js";
 import {
   runPostConversationPipeline,
+  runWithStrictNotification,
   runWithNotification,
 } from "../../lifecycle/pipeline.js";
 import {
@@ -70,6 +71,22 @@ function parsePlayerLevel(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.max(1, Math.floor(value))
     : 1;
+}
+
+const DEBUG_TRIGGER_PHRASES = new Set(["I will do it", "i will do it"]);
+
+function isDebugQuestTrigger(text: string): boolean {
+  return DEBUG_TRIGGER_PHRASES.has(text);
+}
+
+function buildDebugQuestId(characterName: string): string {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  return `${characterName}_debug_phrase_${stamp}`;
+}
+
+function buildDebugQuestTitle(characterName: string): string {
+  const display = characterName.replace(/_/g, " ");
+  return `${display} debug quest`;
 }
 
 function createAuthoritativeState(playerLevel: number): AuthoritativeState {
@@ -214,6 +231,70 @@ async function handleMessage(
 
   registry.touch(sessionId);
   const { session } = entry;
+  if (isDebugQuestTrigger(text)) {
+    freezeSession(session, "rule");
+    const confirmReply = "Acknowledged.";
+    const questId = session.conversationState.questOffered ?? buildDebugQuestId(session.activeCharacter.name);
+    const questTitle = (entry as any)._pendingQuestTitle ?? buildDebugQuestTitle(session.activeCharacter.name);
+    const lore = null;
+
+    let activated = false;
+    try {
+      activated = await runWithStrictNotification(session, questId, questTitle, lore);
+    } catch (err) {
+      console.error("[bridge] debug quest activation failed:", err);
+      activated = false;
+    }
+
+    if (!activated) {
+      session.conversationState.frozen = false;
+      session.conversationState.terminationReason = null;
+      sendError(
+        res,
+        500,
+        "quest_activation_failed",
+        "Debug quest activation could not complete."
+      );
+      return;
+    }
+
+    try {
+      const questRecord: QuestRecord = {
+        questId,
+        title: questTitle,
+        character: session.activeCharacter.name,
+        status: "active",
+        acceptedAt: new Date().toISOString(),
+        completedAt: null,
+        lore,
+        sourceConversationId: sessionId,
+        memorySyncPending: false,
+        completionOutcome: null,
+      };
+      await saveQuestRecord(questRecord);
+    } catch (err) {
+      console.error("[bridge] debug quest record save failed:", err);
+    }
+
+    entry.terminated = true;
+    const stateSnapshot = snapshotState(session.conversationState);
+    registry.remove(sessionId);
+    sendJson(res, 200, {
+      reply: confirmReply,
+      conversationState: stateSnapshot,
+      terminated: true,
+      questActivation: {
+        triggered: true,
+        source: "debug_phrase",
+        phrase: text,
+        questId,
+        questTitle,
+        bundleReady: true,
+      },
+    });
+    return;
+  }
+
   const phaseBeforeReply = session.conversationState.phase;
   let reply: string;
   try {

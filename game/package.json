@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "diagnose:runtime": "node scripts/diagnoseRuntime.mjs",
+    "validate:npcs": "node scripts/validateNpcAssets.mjs",
     "validate:dungeons": "node scripts/validateDungeons.mjs",
     "preview": "vite preview"
   },

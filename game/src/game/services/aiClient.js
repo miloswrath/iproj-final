@@ -57,7 +57,18 @@ export async function sendMessage(sessionId, text) {
   if (typeof text !== 'string' || !text.trim()) {
     throw new AiClientError('invalid_argument', 0, 'text must be non-empty');
   }
-  return postJson(`${API_BASE}/${encodeURIComponent(sessionId)}/message`, { text });
+  const payload = await postJson(`${API_BASE}/${encodeURIComponent(sessionId)}/message`, { text });
+  if (payload.questActivation && typeof payload.questActivation === 'object') {
+    payload.questActivation = {
+      triggered: payload.questActivation.triggered === true,
+      source: payload.questActivation.source ?? null,
+      phrase: payload.questActivation.phrase ?? null,
+      questId: payload.questActivation.questId ?? null,
+      questTitle: payload.questActivation.questTitle ?? null,
+      bundleReady: payload.questActivation.bundleReady === true,
+    };
+  }
+  return payload;
 }
 
 export async function endConversation(sessionId, reason = 'exit') {

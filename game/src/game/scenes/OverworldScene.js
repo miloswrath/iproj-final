@@ -10,8 +10,12 @@ import { LoreCodexOverlay } from '../ui/LoreCodexOverlay';
 import { HUDController } from '../ui/HUDController';
 import { ShopUpgradeOverlay } from '../ui/ShopUpgradeOverlay';
 import {
+  activateFollowerForNpc,
   applyFriendshipUpdate,
+  clearFollowerState,
   clearPostBattleReturnContext,
+  ensureStarterSelection,
+  getFollowState,
   getActiveCharacterState,
   getInventoryItemQuantity,
   getPlaytestInventoryState,
@@ -19,13 +23,16 @@ import {
   getUpgradeProgressionState,
   getVillageShopState,
   grantInventoryItem,
+  restoreFollowerAfterTransition,
   setActiveCharacterState,
   setFriendRoster,
+  setFollowState,
   setPostBattleReturnContext,
   setQuestRunState,
   clearQuestRunState,
+  markFollowerTransitionPending,
 } from '../playtestProgression';
-import { resolveNpcConfig } from '../npc/npcConfig';
+import { resolveNpcConfig, resolveNpcConfigForArchetype } from '../npc/npcConfig';
 import { QuestEventStream, getLastQuestStartPayload } from '../services/questEvents';
 import { fetchActiveCharacterState, fetchFriendRoster } from '../services/questRunClient';
 import { spawnQuestToast } from '../ui/QuestToast';
@@ -45,6 +52,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   create(data) {
+    ensureStarterSelection();
     this.dungeonCompletionStatus = data?.dungeonCompletionStatus ?? null;
     this.rewardSummaryText = data?.rewardSummaryText ?? '';
     this.companionFollowActive = false;
@@ -57,12 +65,16 @@ export class OverworldScene extends Phaser.Scene {
     this.creativeGallerySelection = 0;
 
     // If returning from completed quest run, clear run state
-    if (data?.questCompleted) {
+    if (data?.questCompleted || data?.dungeonCompletionStatus === 'complete') {
       clearQuestRunState();
+      clearFollowerState();
     }
 
     if (data?.postBattleReturnContext) {
       setPostBattleReturnContext(data.postBattleReturnContext);
+      if (data.postBattleReturnContext.activeNpcId) {
+        setActiveCharacterState({ activeNpcId: data.postBattleReturnContext.activeNpcId });
+      }
     } else if (data?.questCompleted || data?.dungeonCompletionStatus === 'failed') {
       clearPostBattleReturnContext();
     }
@@ -101,6 +113,7 @@ export class OverworldScene extends Phaser.Scene {
     this.lastDirection = 'down';
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    this.restoreCompanionFollowFromState();
 
     this.obstacles = this.physics.add.staticGroup();
     this.buildCollisionBodies();
@@ -423,6 +436,7 @@ export class OverworldScene extends Phaser.Scene {
     this.enterPrompt.setVisible(inDungeonZone);
 
     if (inDungeonZone && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      markFollowerTransitionPending();
       this.scene.start('dungeon', {
         returnX: this.layout.dungeonEntryWorld.x,
         returnY: this.layout.dungeonEntryWorld.y,
@@ -1099,7 +1113,7 @@ export class OverworldScene extends Phaser.Scene {
       const sprite = this.add
         .sprite(worldX, worldY, npc.spriteKey, 0)
         .setDepth(worldY + 120)
-        .setScale(AI_NPC_WORLD_SCALE);
+        .setScale(npc.scale ?? AI_NPC_WORLD_SCALE);
       if (npc.tint) {
         sprite.setTint(npc.tint);
       }
@@ -1305,12 +1319,14 @@ export class OverworldScene extends Phaser.Scene {
 
   getRenderableFriendNpcs() {
     const active = getActiveCharacterState();
+    const followState = getFollowState();
     const completed = new Set(active.completedNpcIds ?? []);
     const renderables = [];
     const usedPlacements = new Set();
 
     const pushRenderable = (npcId, placement) => {
       if (!npcId || !placement || usedPlacements.has(placement.placementId)) return;
+      if (followState.shouldFollow && active.activeNpcId === npcId) return;
       const config = resolveNpcConfig(npcId);
       if (!config) return;
       usedPlacements.add(placement.placementId);
@@ -1345,7 +1361,24 @@ export class OverworldScene extends Phaser.Scene {
         fetchFriendRoster(),
       ]);
       if (activeCharacter) {
-        setActiveCharacterState(activeCharacter);
+        const localActive = getActiveCharacterState();
+        setActiveCharacterState({
+          ...activeCharacter,
+          starterNpcId: localActive.starterNpcId,
+          starterArchetype: localActive.starterArchetype,
+          unlockedNpcIds: Array.from(new Set([
+            ...(localActive.unlockedNpcIds ?? []),
+            ...(activeCharacter.unlockedNpcIds ?? []),
+          ])),
+          completedNpcIds: Array.from(new Set([
+            ...(localActive.completedNpcIds ?? []),
+            ...(activeCharacter.completedNpcIds ?? []),
+          ])),
+          shouldFollow: localActive.shouldFollow,
+          followMode: localActive.followMode,
+          followTarget: localActive.followTarget,
+          transitionResumePending: localActive.transitionResumePending,
+        });
       }
       if (roster?.friends) {
         setFriendRoster(roster.friends);
@@ -1398,7 +1431,7 @@ export class OverworldScene extends Phaser.Scene {
     this.buildQuestRunState(payload);
 
     // Activate companion follow if NPC sprite is available
-    this.activateCompanionFollow();
+    this.activateCompanionFollow(payload);
   }
 
   updatePortalLabel(title) {
@@ -1460,9 +1493,64 @@ export class OverworldScene extends Phaser.Scene {
     ];
   }
 
-  activateCompanionFollow() {
-    this.companionFollowActive = false;
-    this.companionFollowSprite = null;
+  restoreCompanionFollowFromState() {
+    const followState = getFollowState();
+    if (!followState.shouldFollow) {
+      this.companionFollowActive = false;
+      if (this.companionFollowSprite) {
+        this.companionFollowSprite.destroy();
+        this.companionFollowSprite = null;
+      }
+      return;
+    }
+
+    if (followState.transitionResumePending) {
+      restoreFollowerAfterTransition();
+    }
+    this.activateCompanionFollow({ npcId: followState.npcId });
+  }
+
+  ensureCompanionFollowSprite(npcConfig) {
+    if (!npcConfig || !this.player) return;
+    const followOffsetX = -28;
+    const followOffsetY = 4;
+    const animKey = `${npcConfig.walkKey ?? npcConfig.spriteKey}-loop`;
+    const textureKey = npcConfig.walkKey ?? npcConfig.spriteKey;
+    if (!this.anims.exists(animKey)) {
+      const tex = this.textures.get(textureKey);
+      const totalFrames = tex?.frameTotal ? Math.max(1, tex.frameTotal - 1) : 1;
+      this.anims.create({
+        key: animKey,
+        frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: Math.max(0, totalFrames - 1) }),
+        frameRate: 6,
+        repeat: -1,
+      });
+    }
+
+    if (this.companionFollowSprite?.texture?.key !== textureKey) {
+      this.companionFollowSprite?.destroy();
+      this.companionFollowSprite = this.add
+        .sprite(this.player.x + followOffsetX, this.player.y + followOffsetY, textureKey, 0)
+        .setDepth(this.player.y + 118)
+        .setScale(npcConfig.scale ?? AI_NPC_WORLD_SCALE);
+      this.companionFollowSprite.anims.play(animKey, true);
+    }
+  }
+
+  activateCompanionFollow(payload = {}) {
+    const npcConfig =
+      resolveNpcConfig(payload?.npcId)
+      ?? resolveNpcConfig(getActiveCharacterState().activeNpcId)
+      ?? resolveNpcConfigForArchetype(payload?.character);
+    if (!npcConfig) {
+      this.companionFollowActive = false;
+      this.companionFollowSprite = null;
+      return;
+    }
+    activateFollowerForNpc(npcConfig.id);
+    this.companionFollowActive = true;
+    this.ensureCompanionFollowSprite(npcConfig);
+    this.renderAiNpcs();
   }
 
   updateCompanionFollow() {
@@ -1479,6 +1567,14 @@ export class OverworldScene extends Phaser.Scene {
       this.companionFollowSprite.x += moveX;
       this.companionFollowSprite.y += moveY;
       this.companionFollowSprite.setDepth(this.companionFollowSprite.y + 120);
+      this.companionFollowSprite.anims.play(`${this.companionFollowSprite.texture.key}-loop`, true);
+    } else {
+      this.companionFollowSprite.anims.stop();
+      this.companionFollowSprite.setFrame(0);
+    }
+    const followState = getFollowState();
+    if (followState.transitionResumePending || followState.followMode !== 'active') {
+      setFollowState({ followMode: 'active', transitionResumePending: false });
     }
   }
 
