@@ -2,8 +2,14 @@ import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const APP_URL = process.env.GAME_URL ?? 'http://127.0.0.1:5173';
+const APP_URL = process.env.GAME_URL ?? 'http://127.0.0.1:5173?skipTitle=1';
 const SCREENSHOT_DIR = path.resolve(process.cwd(), 'diagnostics');
+
+function getTitleUrl(appUrl) {
+  const url = new URL(appUrl);
+  url.searchParams.delete('skipTitle');
+  return url.toString();
+}
 
 function summariseDamages(values) {
   if (values.length === 0) {
@@ -46,6 +52,14 @@ async function main() {
   page.on('pageerror', (err) => {
     browserErrors.push({ type: 'pageerror', text: err.message });
   });
+
+  const titleUrl = getTitleUrl(APP_URL);
+  await page.goto(titleUrl, { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => {
+    const runtime = window.__gameRuntime ?? window.__playtestGame;
+    return Boolean(runtime?.scene?.keys?.title?.scene?.isActive());
+  }, null, { timeout: 15000 });
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'title.png') });
 
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => {
@@ -202,6 +216,7 @@ async function main() {
     },
     browserErrors,
     screenshots: {
+      title: path.join(SCREENSHOT_DIR, 'title.png'),
       overworld: path.join(SCREENSHOT_DIR, 'overworld.png'),
       dungeon: path.join(SCREENSHOT_DIR, 'dungeon.png'),
       combat: path.join(SCREENSHOT_DIR, 'combat.png'),

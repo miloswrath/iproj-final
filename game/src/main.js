@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import './style.css';
 import { BootScene } from './game/scenes/BootScene';
 import { PreloadScene } from './game/scenes/PreloadScene';
+import { TitleScene } from './game/scenes/TitleScene';
 import { OverworldScene } from './game/scenes/OverworldScene';
 import { DungeonScene } from './game/scenes/DungeonScene';
 import { CombatScene } from './game/scenes/CombatScene';
@@ -28,7 +29,7 @@ const gameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, PreloadScene, OverworldScene, DungeonScene, CombatScene, AssetCanvasScene],
+  scene: [BootScene, PreloadScene, TitleScene, OverworldScene, DungeonScene, CombatScene, AssetCanvasScene],
 };
 
 const game = new Phaser.Game(gameConfig);

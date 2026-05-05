@@ -119,18 +119,26 @@ export class OverworldScene extends Phaser.Scene {
     this.keys = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,S,A,D');
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
-    this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    this.devModeController = new DeveloperModeController(this, {
-      sceneLabel: 'Overworld',
-      tileSize: this.layout.tileSize,
-      cols: this.layout.cols,
-      rows: this.layout.rows,
-      worldWidth: this.layout.worldWidth,
-      worldHeight: this.layout.worldHeight,
-      registry: loadDevAssetRegistry('overworld', this.textures),
-    });
+    const params = new URLSearchParams(window.location.search);
+    this.presentationDebugHud = params.get('demoDebug') === '1';
+    this.devModeEnabled = params.get('devMode') === '1';
 
-    this.add.text(16, 16, 'Overworld: outskirts -> town route, Shift sprint, E at gate', {
+    this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.devModeController = this.devModeEnabled
+      ? new DeveloperModeController(this, {
+        sceneLabel: 'Overworld',
+        tileSize: this.layout.tileSize,
+        cols: this.layout.cols,
+        rows: this.layout.rows,
+        worldWidth: this.layout.worldWidth,
+        worldHeight: this.layout.worldHeight,
+        registry: loadDevAssetRegistry('overworld', this.textures),
+      })
+      : null;
+
+    const lowerHudY = Math.max(220, this.scale.height - 112);
+
+    this.add.text(16, 16, 'Move: WASD/Arrows | Shift sprint | E interact', {
       fontFamily: 'monospace',
       fontSize: '16px',
       color: '#ffffff',
@@ -139,7 +147,7 @@ export class OverworldScene extends Phaser.Scene {
     }).setScrollFactor(0).setDepth(HUD_DEPTH);
 
     this.enterPrompt = this.add
-      .text(16, 48, 'Press E to enter dungeon', {
+      .text(16, lowerHudY - 72, 'Press E to enter dungeon', {
         fontFamily: 'monospace',
         fontSize: '16px',
         color: '#d9ffb8',
@@ -151,7 +159,7 @@ export class OverworldScene extends Phaser.Scene {
       .setVisible(false);
 
     this.completionLabel = this.add
-      .text(16, 80, '', {
+      .text(16, lowerHudY - 48, '', {
         fontFamily: 'monospace',
         fontSize: '16px',
         color: '#fff7cc',
@@ -171,7 +179,8 @@ export class OverworldScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(this.presentationDebugHud);
 
     this.auditLabel = this.add
       .text(16, 136, audit.message, {
@@ -182,7 +191,8 @@ export class OverworldScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(HUD_DEPTH);
+      .setDepth(HUD_DEPTH)
+      .setVisible(this.presentationDebugHud);
 
     const progressionSummary = getPlaytestProgressionSummary();
     const inventoryCount = getPlaytestInventoryState().items.reduce(
@@ -191,7 +201,7 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     this.progressionLabel = this.add
-      .text(16, 160, `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} loot | Upgrades C${progressionSummary.upgrades?.claws ?? 0}/W${progressionSummary.upgrades?.ward ?? 0}/G${progressionSummary.upgrades?.guard ?? 0}`, {
+      .text(16, lowerHudY, `Run: ${progressionSummary.dungeonClears} clears | ${inventoryCount} loot | Upgrades C${progressionSummary.upgrades?.claws ?? 0}/W${progressionSummary.upgrades?.ward ?? 0}/G${progressionSummary.upgrades?.guard ?? 0}`, {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffd98e',
@@ -202,7 +212,7 @@ export class OverworldScene extends Phaser.Scene {
       .setDepth(HUD_DEPTH);
 
     this.villageActionLabel = this.add
-      .text(16, 208, '', {
+      .text(16, lowerHudY + 48, '', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#d7f171',
@@ -214,7 +224,7 @@ export class OverworldScene extends Phaser.Scene {
       .setVisible(false);
 
     this.rewardLabel = this.add
-      .text(16, 184, this.rewardSummaryText ? `Latest reward: ${this.rewardSummaryText}` : 'Latest reward: none yet', {
+      .text(16, lowerHudY + 24, this.rewardSummaryText ? `Latest reward: ${this.rewardSummaryText}` : 'Latest reward: none yet', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#c8ffbc',
@@ -1688,7 +1698,7 @@ export class OverworldScene extends Phaser.Scene {
     );
     const upgrades = progressionSummary.upgrades ?? {};
     this.progressionLabel?.setText(
-      `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} loot | Upgrades C${upgrades.claws ?? 0}/W${upgrades.ward ?? 0}/G${upgrades.guard ?? 0}`,
+      `Run: ${progressionSummary.dungeonClears} clears | ${inventoryCount} loot | Upgrades C${upgrades.claws ?? 0}/W${upgrades.ward ?? 0}/G${upgrades.guard ?? 0}`,
     );
     this.refreshWalletCounter();
   }
