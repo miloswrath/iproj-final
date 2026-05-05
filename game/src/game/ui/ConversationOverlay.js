@@ -389,6 +389,17 @@ export class ConversationOverlay {
       if (response.reply) {
         this.appendLine('npc', response.reply);
       }
+      if (response.questActivation?.triggered) {
+        this.appendLine('npc', `Quest activation ready: ${response.questActivation.questTitle ?? 'Quest'}.`);
+        if (typeof this.scene.onQuestStarted === 'function') {
+          this.scene.onQuestStarted({
+            questId: response.questActivation.questId ?? 'debug_quest',
+            questTitle: response.questActivation.questTitle ?? 'Quest',
+            character: getActiveArchetype(this.npc) ?? this.npc?.archetype ?? 'general',
+            source: response.questActivation.source,
+          });
+        }
+      }
       if (response.terminated) {
         this.terminated = true;
         this.scheduleAutoClose();

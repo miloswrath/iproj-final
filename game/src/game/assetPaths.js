@@ -60,6 +60,20 @@ import crystalShardIconUrl from '../../../assets/ui/inventory/crystal-shard-icon
 import npcGirl1IdleUrl from '../../../assets/characters/girl-1/idle.png';
 import npcGirl1WalkUrl from '../../../assets/characters/girl-1/walk.png';
 import npcGirl1DialogueUrl from '../../../assets/characters/girl-1/dialogue.png';
+import npcGirl2IdleUrl from '../../../assets/characters/girl-2/Idle.png';
+import npcGirl2WalkUrl from '../../../assets/characters/girl-2/Walk.png';
+import npcGirl2DialogueUrl from '../../../assets/characters/girl-2/Dialogue.png';
+import npcGirl2ProtectUrl from '../../../assets/characters/girl-2/Protection.png';
+import npcGirl3IdleUrl from '../../../assets/characters/girl-3/Idle.png';
+import npcGirl3WalkUrl from '../../../assets/characters/girl-3/Walk.png';
+import npcGirl3DialogueUrl from '../../../assets/characters/girl-3/Dialogue.png';
+import npcGirl3ProtectUrl from '../../../assets/characters/girl-3/Protection.png';
+import countessVampireIdleUrl from '../../../assets/characters/Countess_Vampire/Idle.png';
+import countessVampireWalkUrl from '../../../assets/characters/Countess_Vampire/Walk.png';
+import countessVampireInteractUrl from '../../../assets/characters/Countess_Vampire/Attack_1.png';
+import convertedVampireIdleUrl from '../../../assets/characters/Converted_Vampire/Idle.png';
+import convertedVampireWalkUrl from '../../../assets/characters/Converted_Vampire/Walk.png';
+import convertedVampireInteractUrl from '../../../assets/characters/Converted_Vampire/Protect.png';
 
 export const assetPaths = {
   witchKittyWalkUrl,
@@ -124,4 +138,18 @@ export const assetPaths = {
   npcGirl1IdleUrl,
   npcGirl1WalkUrl,
   npcGirl1DialogueUrl,
+  npcGirl2IdleUrl,
+  npcGirl2WalkUrl,
+  npcGirl2DialogueUrl,
+  npcGirl2ProtectUrl,
+  npcGirl3IdleUrl,
+  npcGirl3WalkUrl,
+  npcGirl3DialogueUrl,
+  npcGirl3ProtectUrl,
+  countessVampireIdleUrl,
+  countessVampireWalkUrl,
+  countessVampireInteractUrl,
+  convertedVampireIdleUrl,
+  convertedVampireWalkUrl,
+  convertedVampireInteractUrl,
 };

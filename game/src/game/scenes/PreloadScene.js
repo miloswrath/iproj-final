@@ -170,6 +170,70 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 128,
       frameHeight: 128,
     });
+    this.load.spritesheet('npc-girl-2-idle', assetPaths.npcGirl2IdleUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-2-walk', assetPaths.npcGirl2WalkUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-2-dialogue', assetPaths.npcGirl2DialogueUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-2-protect', assetPaths.npcGirl2ProtectUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-3-idle', assetPaths.npcGirl3IdleUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-3-walk', assetPaths.npcGirl3WalkUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-3-dialogue', assetPaths.npcGirl3DialogueUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-girl-3-protect', assetPaths.npcGirl3ProtectUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-countess-vampire-idle', assetPaths.countessVampireIdleUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-countess-vampire-walk', assetPaths.countessVampireWalkUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-countess-vampire-dialogue', assetPaths.countessVampireIdleUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-countess-vampire-interact', assetPaths.countessVampireInteractUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-converted-vampire-idle', assetPaths.convertedVampireIdleUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-converted-vampire-walk', assetPaths.convertedVampireWalkUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-converted-vampire-dialogue', assetPaths.convertedVampireIdleUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet('npc-converted-vampire-interact', assetPaths.convertedVampireInteractUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
 
     if (isAssetCanvasMode) {
       preloadAutoAssetImages(this);

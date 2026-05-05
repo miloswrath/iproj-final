@@ -1,3 +1,4 @@
+import { resolveNpcConfig, resolveNpcConfigForArchetype, selectStarterNpc } from './npc/npcConfig.js';
 import { INVENTORY_ITEM_DEFS, createInventoryEntry } from './ui/inventoryData';
 
 const INVENTORY_SLOTS = 24;
@@ -83,16 +84,26 @@ function createEmptyEquipmentSlots() {
   return EQUIPMENT_SLOT_DEFS.map((slot) => ({ ...slot, item: null }));
 }
 
+function buildDefaultActiveCharacter() {
+  return {
+    activeNpcId: null,
+    starterNpcId: null,
+    starterArchetype: null,
+    unlockedNpcIds: [],
+    completedNpcIds: [],
+    pendingUnlockNpcId: null,
+    lastAdvancedAt: null,
+    shouldFollow: false,
+    followMode: 'paused',
+    followTarget: 'player',
+    transitionResumePending: false,
+    lastSyncedAt: null,
+  };
+}
+
 function defaultFriendshipState() {
   return {
-    activeCharacter: {
-      activeNpcId: 'girl-1-east',
-      starterNpcId: 'girl-1-east',
-      unlockedNpcIds: ['girl-1-east'],
-      completedNpcIds: [],
-      pendingUnlockNpcId: null,
-      lastAdvancedAt: null,
-    },
+    activeCharacter: buildDefaultActiveCharacter(),
     friendRoster: [],
     lastFriendUnlock: null,
     postBattleReturnContext: null,
@@ -186,15 +197,40 @@ function normalizeFriendshipState() {
     ...(progressionState.friendship.activeCharacter ?? {}),
   };
 
-  if (!Array.isArray(progressionState.friendship.activeCharacter.unlockedNpcIds)) {
-    progressionState.friendship.activeCharacter.unlockedNpcIds = ['girl-1-east'];
+  const active = progressionState.friendship.activeCharacter;
+  const activeNpcConfig = resolveNpcConfig(active.activeNpcId);
+  const starterNpcConfig = resolveNpcConfig(active.starterNpcId);
+  if (!activeNpcConfig && starterNpcConfig) {
+    active.activeNpcId = starterNpcConfig.id;
   }
-  if (!Array.isArray(progressionState.friendship.activeCharacter.completedNpcIds)) {
-    progressionState.friendship.activeCharacter.completedNpcIds = [];
+  if (!starterNpcConfig) {
+    const fallback = selectStarterNpc() ?? resolveNpcConfig(active.activeNpcId);
+    if (fallback) {
+      active.starterNpcId = fallback.id;
+      active.activeNpcId = fallback.id;
+      active.starterArchetype = fallback.archetype;
+      active.unlockedNpcIds = [fallback.id];
+    }
+  } else {
+    active.starterArchetype = starterNpcConfig.archetype;
+  }
+
+  if (!Array.isArray(active.unlockedNpcIds)) {
+    active.unlockedNpcIds = defaults.activeCharacter.unlockedNpcIds;
+  }
+  if (!active.unlockedNpcIds.includes(active.starterNpcId)) {
+    active.unlockedNpcIds.unshift(active.starterNpcId);
+  }
+  if (!Array.isArray(active.completedNpcIds)) {
+    active.completedNpcIds = [];
   }
   if (!Array.isArray(progressionState.friendship.friendRoster)) {
     progressionState.friendship.friendRoster = [];
   }
+}
+
+function syncActiveCharacterTimestamp(activeCharacter) {
+  activeCharacter.lastSyncedAt = new Date().toISOString();
 }
 
 function normalizeInventoryState() {
@@ -710,12 +746,57 @@ export function getActiveCharacterState() {
   return progressionState.friendship.activeCharacter;
 }
 
+export function ensureStarterSelection(random = Math.random) {
+  normalizeInventoryState();
+  const active = progressionState.friendship.activeCharacter;
+  const starterNpc = resolveNpcConfig(active.starterNpcId) ?? selectStarterNpc(random);
+  if (!starterNpc) {
+    return active;
+  }
+
+  active.starterNpcId = starterNpc.id;
+  active.starterArchetype = starterNpc.archetype;
+
+  if (!active.activeNpcId || !resolveNpcConfig(active.activeNpcId)) {
+    active.activeNpcId = starterNpc.id;
+  }
+
+  if (!Array.isArray(active.unlockedNpcIds)) {
+    active.unlockedNpcIds = [starterNpc.id];
+  } else if (!active.unlockedNpcIds.includes(starterNpc.id)) {
+    active.unlockedNpcIds.unshift(starterNpc.id);
+  }
+
+  syncActiveCharacterTimestamp(active);
+  saveProgressionState();
+  return active;
+}
+
+export function activateStarterByArchetype(archetype) {
+  normalizeInventoryState();
+  const starterNpc = resolveNpcConfigForArchetype(archetype);
+  if (!starterNpc) {
+    return progressionState.friendship.activeCharacter;
+  }
+  const active = progressionState.friendship.activeCharacter;
+  active.activeNpcId = starterNpc.id;
+  active.starterNpcId = starterNpc.id;
+  active.starterArchetype = starterNpc.archetype;
+  if (!active.unlockedNpcIds.includes(starterNpc.id)) {
+    active.unlockedNpcIds.unshift(starterNpc.id);
+  }
+  syncActiveCharacterTimestamp(active);
+  saveProgressionState();
+  return active;
+}
+
 export function setActiveCharacterState(activeCharacter) {
   normalizeInventoryState();
   progressionState.friendship.activeCharacter = {
     ...progressionState.friendship.activeCharacter,
     ...(activeCharacter ?? {}),
   };
+  syncActiveCharacterTimestamp(progressionState.friendship.activeCharacter);
   saveProgressionState();
   return progressionState.friendship.activeCharacter;
 }
@@ -752,6 +833,81 @@ export function clearPostBattleReturnContext() {
   normalizeInventoryState();
   progressionState.friendship.postBattleReturnContext = null;
   saveProgressionState();
+}
+
+export function getFollowState() {
+  normalizeInventoryState();
+  const active = progressionState.friendship.activeCharacter;
+  return {
+    shouldFollow: active.shouldFollow === true,
+    followMode: active.followMode ?? 'paused',
+    followTarget: active.followTarget ?? 'player',
+    transitionResumePending: active.transitionResumePending === true,
+    lastSyncedAt: active.lastSyncedAt ?? null,
+    npcId: active.activeNpcId,
+  };
+}
+
+export function setFollowState(partialState = {}) {
+  normalizeInventoryState();
+  const active = progressionState.friendship.activeCharacter;
+  Object.assign(active, partialState ?? {});
+  syncActiveCharacterTimestamp(active);
+  saveProgressionState();
+  return getFollowState();
+}
+
+export function activateFollowerForNpc(npcId, followTarget = 'player') {
+  normalizeInventoryState();
+  const active = progressionState.friendship.activeCharacter;
+  if (typeof npcId === 'string' && npcId) {
+    active.activeNpcId = npcId;
+  }
+  active.shouldFollow = true;
+  active.followMode = 'active';
+  active.followTarget = followTarget;
+  active.transitionResumePending = false;
+  syncActiveCharacterTimestamp(active);
+  saveProgressionState();
+  return getFollowState();
+}
+
+export function markFollowerTransitionPending() {
+  normalizeInventoryState();
+  const active = progressionState.friendship.activeCharacter;
+  if (!active.shouldFollow) {
+    return getFollowState();
+  }
+  active.followMode = 'recovering';
+  active.transitionResumePending = true;
+  syncActiveCharacterTimestamp(active);
+  saveProgressionState();
+  return getFollowState();
+}
+
+export function restoreFollowerAfterTransition() {
+  normalizeInventoryState();
+  const active = progressionState.friendship.activeCharacter;
+  if (!active.shouldFollow) {
+    return getFollowState();
+  }
+  active.followMode = 'active';
+  active.transitionResumePending = false;
+  syncActiveCharacterTimestamp(active);
+  saveProgressionState();
+  return getFollowState();
+}
+
+export function clearFollowerState() {
+  normalizeInventoryState();
+  const active = progressionState.friendship.activeCharacter;
+  active.shouldFollow = false;
+  active.followMode = 'paused';
+  active.transitionResumePending = false;
+  active.followTarget = 'player';
+  syncActiveCharacterTimestamp(active);
+  saveProgressionState();
+  return getFollowState();
 }
 
 export function applyFriendshipRewards(rewardResults = []) {

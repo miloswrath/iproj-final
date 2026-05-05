@@ -932,6 +932,7 @@ export class CombatScene extends Phaser.Scene {
         spawnY: this.returnContext.dungeonSpawnY,
         completionStatus: nextLayoutState.encounterCompleted ? 'complete' : 'incomplete',
         combatResult: 'victory',
+        activeNpcId: this.returnContext.activeNpcId ?? null,
       });
 
       return;
@@ -942,6 +943,9 @@ export class CombatScene extends Phaser.Scene {
       spawnX: this.returnContext.returnX ?? 170,
       spawnY: this.returnContext.returnY ?? 170,
       dungeonCompletionStatus: 'failed',
+      postBattleReturnContext: {
+        activeNpcId: this.returnContext.activeNpcId ?? null,
+      },
     });
   }
 

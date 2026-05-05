@@ -28,24 +28,24 @@ interface NpcConfig {
 const NPC_CONFIGS: NpcConfig[] = [
   {
     id: "girl-1-east",
-    characterName: "enabler",
-    displayName: "Ember",
-    archetype: "enabler",
+    characterName: "parasite",
+    displayName: "Ember Voss",
+    archetype: "parasite",
     questSetId: "starter-field-quests",
     homePlacementId: "town-square-east",
     rewardPool: [
-      { itemId: "enabling-ribbon", quantity: 1, grantMode: "guaranteed" },
-      { itemId: "echo-thread", quantity: 2, grantMode: "guaranteed" },
-      { itemId: "sun-coins", quantity: 18, grantMode: "guaranteed" },
-      { itemId: "hearth-badge", quantity: 1, grantMode: "chance", chance: 0.55 },
-      { itemId: "violet-lens", quantity: 1, grantMode: "chance", chance: 0.2 },
+      { itemId: "parasite-needle", quantity: 1, grantMode: "guaranteed" },
+      { itemId: "sun-coins", quantity: 16, grantMode: "guaranteed" },
+      { itemId: "echo-thread", quantity: 1, grantMode: "guaranteed" },
+      { itemId: "whisper-nail", quantity: 1, grantMode: "chance", chance: 0.4 },
+      { itemId: "dusk-lace", quantity: 1, grantMode: "chance", chance: 0.2 },
     ],
     unlocksNpcId: "mirror-1-north",
   },
   {
     id: "mirror-1-north",
     characterName: "mirror",
-    displayName: "Mirror",
+    displayName: "Lyra Mirror",
     archetype: "mirror",
     questSetId: "mirror-grove-quests",
     homePlacementId: "town-square-west",
@@ -54,15 +54,68 @@ const NPC_CONFIGS: NpcConfig[] = [
       { itemId: "rift-spindle", quantity: 1, grantMode: "guaranteed" },
       { itemId: "crystal-shard", quantity: 2, grantMode: "guaranteed" },
       { itemId: "pact-ink", quantity: 1, grantMode: "chance", chance: 0.35 },
-      { itemId: "moon-pearl", quantity: 1, grantMode: "chance", chance: 0.25 },
+      { itemId: "violet-lens", quantity: 1, grantMode: "chance", chance: 0.22 },
+    ],
+    unlocksNpcId: "enabler-1-west",
+  },
+  {
+    id: "enabler-1-west",
+    characterName: "enabler",
+    displayName: "Marcus Vale",
+    archetype: "enabler",
+    questSetId: "enabler-workshop-quests",
+    homePlacementId: "town-square-north",
+    rewardPool: [
+      { itemId: "enabling-ribbon", quantity: 1, grantMode: "guaranteed" },
+      { itemId: "hearth-badge", quantity: 1, grantMode: "guaranteed" },
+      { itemId: "echo-thread", quantity: 2, grantMode: "guaranteed" },
+      { itemId: "sun-coins", quantity: 20, grantMode: "guaranteed" },
+      { itemId: "tempered-bloom", quantity: 1, grantMode: "chance", chance: 0.35 },
+    ],
+    unlocksNpcId: "honest-1-south",
+  },
+  {
+    id: "honest-1-south",
+    characterName: "honest",
+    displayName: "Iona Reed",
+    archetype: "honest",
+    questSetId: "honest-crossroads-quests",
+    homePlacementId: "town-square-west",
+    rewardPool: [
+      { itemId: "honest-whetstone", quantity: 1, grantMode: "guaranteed" },
+      { itemId: "iron-ore", quantity: 1, grantMode: "guaranteed" },
+      { itemId: "steel-button", quantity: 2, grantMode: "guaranteed" },
+      { itemId: "ash-glass", quantity: 1, grantMode: "chance", chance: 0.34 },
+      { itemId: "moon-pearl", quantity: 1, grantMode: "chance", chance: 0.15 },
+    ],
+    unlocksNpcId: "opportunist-1-pond",
+  },
+  {
+    id: "opportunist-1-pond",
+    characterName: "opportunist",
+    displayName: "Kade Flint",
+    archetype: "opportunist",
+    questSetId: "opportunist-pond-quests",
+    homePlacementId: "town-square-east",
+    rewardPool: [
+      { itemId: "opportunist-token", quantity: 1, grantMode: "guaranteed" },
+      { itemId: "sun-coins", quantity: 24, grantMode: "guaranteed" },
+      { itemId: "cracked-fang", quantity: 2, grantMode: "guaranteed" },
+      { itemId: "bone-charm", quantity: 1, grantMode: "chance", chance: 0.35 },
+      { itemId: "pact-ink", quantity: 1, grantMode: "chance", chance: 0.28 },
     ],
     unlocksNpcId: null,
   },
 ];
 
+const LEGACY_NPC_ID_ALIASES: Record<string, string> = {
+  enabler: "enabler-1-west",
+};
+
 function findNpcById(npcId: string | undefined | null): NpcConfig | null {
   if (!npcId) return null;
-  return NPC_CONFIGS.find((npc) => npc.id === npcId) ?? null;
+  const resolvedId = LEGACY_NPC_ID_ALIASES[npcId] ?? npcId;
+  return NPC_CONFIGS.find((npc) => npc.id === resolvedId) ?? null;
 }
 
 function findNpcByCharacter(characterName: string): NpcConfig | null {

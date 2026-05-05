@@ -235,6 +235,135 @@ test("C-4: POST /message with empty text returns 400 empty_message", async () =>
   });
 });
 
+test("debug-trigger: exact phrase triggers quest activation metadata and terminates session", async () => {
+  await withMemoryIsolation(async () => {
+    let questStartPosted = false;
+    const realFetch = globalThis.fetch;
+    const inner = makeFetchMock({ greeting: "hi.", reply: "neutral chat" }, realFetch);
+    const mock = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+          ? input.toString()
+          : (input as Request).url;
+      if (urlStr.endsWith("/quest/start")) {
+        questStartPosted = true;
+        return new Response("", { status: 200 });
+      }
+      return inner(input, init);
+    }) as typeof globalThis.fetch;
+
+    await withMockedFetch(mock, async () => {
+      const ctx = await startEphemeral();
+      try {
+        const startRes = await fetch(`${ctx.baseUrl}/api/v1/conversation/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ character: "general" }),
+        });
+        const { sessionId } = (await startRes.json()) as { sessionId: string };
+
+        const res = await fetch(`${ctx.baseUrl}/api/v1/conversation/${sessionId}/message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "I will do it" }),
+        });
+        assert.equal(res.status, 200);
+        const body = await res.json() as {
+          terminated: boolean;
+          questActivation?: { triggered: boolean; phrase: string; bundleReady: boolean };
+          reply: string;
+        };
+        assert.equal(body.terminated, true);
+        assert.equal(body.questActivation?.triggered, true);
+        assert.equal(body.questActivation?.phrase, "I will do it");
+        assert.equal(body.questActivation?.bundleReady, true);
+        assert.equal(body.reply, "Acknowledged.");
+        assert.equal(questStartPosted, true);
+      } finally {
+        await stop(ctx);
+      }
+    });
+  });
+});
+
+test("debug-trigger: near-miss text does not trigger quest activation metadata", async () => {
+  await withMemoryIsolation(async () => {
+    await withMockedFetch(
+      makeFetchMock({ greeting: "hi.", reply: "neutral chat", classify: { offered: false, questSummary: "" } }),
+      async () => {
+        const ctx = await startEphemeral();
+        try {
+          const startRes = await fetch(`${ctx.baseUrl}/api/v1/conversation/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ character: "general" }),
+          });
+          const { sessionId } = (await startRes.json()) as { sessionId: string };
+
+          const res = await fetch(`${ctx.baseUrl}/api/v1/conversation/${sessionId}/message`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: "I will do it!" }),
+          });
+          assert.equal(res.status, 200);
+          const body = await res.json() as {
+            terminated: boolean;
+            questActivation?: unknown;
+          };
+          assert.equal(body.terminated, false);
+          assert.equal(body.questActivation, undefined);
+        } finally {
+          await stop(ctx);
+        }
+      }
+    );
+  });
+});
+
+test("debug-trigger: activation failure returns quest_activation_failed", async () => {
+  await withMemoryIsolation(async () => {
+    const realFetch = globalThis.fetch;
+    const inner = makeFetchMock({ greeting: "hi.", reply: "neutral chat" }, realFetch);
+    const mock = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+          ? input.toString()
+          : (input as Request).url;
+      if (urlStr.endsWith("/quest/start")) {
+        return new Response("", { status: 503 });
+      }
+      return inner(input, init);
+    }) as typeof globalThis.fetch;
+
+    await withMockedFetch(mock, async () => {
+      const ctx = await startEphemeral();
+      try {
+        const startRes = await fetch(`${ctx.baseUrl}/api/v1/conversation/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ character: "general" }),
+        });
+        const { sessionId } = (await startRes.json()) as { sessionId: string };
+
+        const res = await fetch(`${ctx.baseUrl}/api/v1/conversation/${sessionId}/message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "i will do it" }),
+        });
+        assert.equal(res.status, 500);
+        const body = await res.json() as { error: string };
+        assert.equal(body.error, "quest_activation_failed");
+      } finally {
+        await stop(ctx);
+      }
+    });
+  });
+});
+
 test("C-5: POST /message after acceptance returns 410 session_terminated", async () => {
   await withMemoryIsolation(async () => {
     await withMockedFetch(

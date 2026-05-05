@@ -6,8 +6,10 @@ import { buildDungeonLayoutsFromBlueprints } from '../dungeonPoolBuilder';
 import { InventoryOverlay } from '../ui/InventoryOverlay';
 import { INVENTORY_ITEM_DEFS } from '../ui/inventoryData';
 import {
+  clearFollowerState,
   claimChestRewards,
   getActiveCharacterState,
+  getFollowState,
   getPlaytestCombatantState,
   getPlaytestInventoryState,
   getPlaytestLevel,
@@ -15,11 +17,12 @@ import {
   recordDungeonClear,
   getQuestRunState,
   advanceQuestRunFloor,
+  markFollowerTransitionPending,
   recordQuestFloorEnemyDefeated,
   recordQuestFloorChestOpened,
 } from '../playtestProgression';
 import { recheckFloorObjectives, reportQuestComplete } from '../services/questRunClient';
-import { npcs as npcList } from '../npc/npcConfig';
+import { resolveNpcConfig } from '../npc/npcConfig';
 
 const TILE_SIZE = 40;
 const TILE_SCALE = TILE_SIZE / 16;
@@ -366,7 +369,7 @@ export class DungeonScene extends Phaser.Scene {
 
     this.companionSprite = null;
     if (this.questRunMode) {
-      const companionKey = npcList[0]?.spriteKey ?? null;
+      const companionKey = resolveNpcConfig(getActiveCharacterState().activeNpcId)?.walkKey ?? null;
       if (companionKey) this.spawnCompanion(companionKey, spawnPosition);
     }
 
@@ -2275,6 +2278,9 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     this.combatStarting = true;
+    if (getFollowState().shouldFollow) {
+      markFollowerTransitionPending();
+    }
     this.player.setVelocity(0, 0);
     this.saveEnemyReturnPositions(enemy?.enemyId ?? null);
     if (this.enemies) {
@@ -2530,6 +2536,9 @@ export class DungeonScene extends Phaser.Scene {
       this.completeQuestRun();
     } else {
       advanceQuestRunFloor();
+      if (getFollowState().shouldFollow) {
+        markFollowerTransitionPending();
+      }
       this.scene.start('dungeon', {
         returnX: this.returnX,
         returnY: this.returnY,
@@ -2540,6 +2549,7 @@ export class DungeonScene extends Phaser.Scene {
   completeQuestRun() {
     const runState = this.questRunState;
     recordDungeonClear(this.layoutState);
+    clearFollowerState();
 
     const runSummary = {
       floorsCleared: 3,
@@ -2567,6 +2577,9 @@ export class DungeonScene extends Phaser.Scene {
       rewardSummaryText: this.layoutState.lastChestRewardText ?? '',
       questCompleted: true,
       questTitle: runState?.questTitle ?? 'Quest',
+      postBattleReturnContext: {
+        activeNpcId: getActiveCharacterState().activeNpcId,
+      },
     });
   }
 
@@ -2593,11 +2606,17 @@ export class DungeonScene extends Phaser.Scene {
 
     this.returning = true;
     recordDungeonClear(this.layoutState);
+    if (this.layoutState.encounterCompleted) {
+      clearFollowerState();
+    }
     this.scene.start('overworld', {
       spawnX: this.returnX,
       spawnY: this.returnY,
       dungeonCompletionStatus: this.layoutState.encounterCompleted ? 'complete' : this.completionStatus,
       rewardSummaryText: this.layoutState.lastChestRewardText ?? '',
+      postBattleReturnContext: {
+        activeNpcId: getActiveCharacterState().activeNpcId,
+      },
     });
   }
 
