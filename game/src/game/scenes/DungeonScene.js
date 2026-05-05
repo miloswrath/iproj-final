@@ -2305,12 +2305,12 @@ export class DungeonScene extends Phaser.Scene {
     const levelOffset = Math.max(0, level - 1);
     const depthIndex = Phaser.Math.Clamp(this.layoutState.poolIndex ?? 0, 0, DUNGEON_DEPTH_TUNING.length - 1);
     const depthTuning = DUNGEON_DEPTH_TUNING[depthIndex] ?? DUNGEON_DEPTH_TUNING[0];
-    const hpScale = 0.62 + (levelOffset * 0.12) + depthTuning.hpBonus;
-    const attackScale = 0.5 + (levelOffset * 0.08) + depthTuning.attackBonus;
+    const hpScale = 1.18 + (levelOffset * 0.16) + depthTuning.hpBonus;
+    const attackScale = 0.62 + (levelOffset * 0.08) + depthTuning.attackBonus;
 
     return {
       ...enemyStats,
-      maxHp: Math.max(10, Math.round(enemyStats.maxHp * hpScale)),
+      maxHp: Math.max(28, Math.round(enemyStats.maxHp * hpScale)),
       attack: Math.max(2, Math.round(enemyStats.attack * attackScale)),
       level,
       tier: depthIndex + 1,
@@ -2648,25 +2648,43 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   buildChestRewards(tileTheme, chestIndex) {
-    const itemId = tileTheme === 'undead'
-      ? INVENTORY_ITEM_DEFS.crystalShard.id
-      : INVENTORY_ITEM_DEFS.ironOre.id;
+    const commonLoot = tileTheme === 'undead'
+      ? [INVENTORY_ITEM_DEFS.boneCharm.id, INVENTORY_ITEM_DEFS.crackedFang.id, INVENTORY_ITEM_DEFS.lanternOil.id]
+      : [INVENTORY_ITEM_DEFS.slimeJelly.id, INVENTORY_ITEM_DEFS.mossThread.id, INVENTORY_ITEM_DEFS.steelButton.id];
+    const materialLoot = tileTheme === 'undead'
+      ? [INVENTORY_ITEM_DEFS.crystalShard.id, INVENTORY_ITEM_DEFS.ashGlass.id]
+      : [INVENTORY_ITEM_DEFS.ironOre.id, INVENTORY_ITEM_DEFS.temperedBloom.id];
+    const rareLoot = [INVENTORY_ITEM_DEFS.moonPearl.id, INVENTORY_ITEM_DEFS.hearthBadge.id];
+    const roll = (this.hash2d((this.layoutState?.seed ?? 1) + chestIndex, chestIndex + 17) % 100);
+    const commonItemId = commonLoot[chestIndex % commonLoot.length];
+    const materialItemId = materialLoot[chestIndex % materialLoot.length];
 
     const rewards = [
       {
-        itemId,
+        itemId: commonItemId,
         quantity: chestIndex === 0 ? 1 : 2,
+      },
+      {
+        itemId: 'sun-coins',
+        quantity: chestIndex === 0 ? 7 : 11,
       },
     ];
 
+    if (chestIndex === 0 || roll < 72) {
+      rewards.push({
+        itemId: materialItemId,
+        quantity: 1,
+      });
+    }
+
     if (chestIndex === 0) {
-      rewards.unshift({
+      rewards.push({
         itemId: INVENTORY_ITEM_DEFS.fieldTonic.id,
         quantity: 1,
       });
-    } else {
-      rewards.unshift({
-        itemId: INVENTORY_ITEM_DEFS.slimeJelly.id,
+    } else if (roll < 24) {
+      rewards.push({
+        itemId: rareLoot[roll % rareLoot.length],
         quantity: 1,
       });
     }

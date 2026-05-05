@@ -53,6 +53,7 @@ import undeadObjectsUrl from '../../../assets/_source/craftpix-net-695666-free-u
 import inventoryLayoutUrl from '../../../assets/ui/inventory/inventory-layout.png';
 import inventoryFrameTilesUrl from '../../../assets/ui/inventory/inventory-frame-tiles.png';
 import inventoryIconsUrl from '../../../assets/ui/inventory/inventory-icons.png';
+import itemIconsCustomUrl from '../../../assets/ui/inventory/item-icons-custom.png';
 import fieldTonicIconUrl from '../../../assets/ui/inventory/field-tonic-icon.png';
 import slimeJellyIconUrl from '../../../assets/ui/inventory/slime-jelly-icon.png';
 import crystalShardIconUrl from '../../../assets/ui/inventory/crystal-shard-icon.png';
@@ -116,6 +117,7 @@ export const assetPaths = {
   inventoryLayoutUrl,
   inventoryFrameTilesUrl,
   inventoryIconsUrl,
+  itemIconsCustomUrl,
   fieldTonicIconUrl,
   slimeJellyIconUrl,
   crystalShardIconUrl,
