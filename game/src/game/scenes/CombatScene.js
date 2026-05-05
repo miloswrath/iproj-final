@@ -1101,15 +1101,17 @@ export class CombatScene extends Phaser.Scene {
 
   resolvePlayerAttack(action = 'attack') {
     const isHeavy = action === 'heavy';
-    const baseAttack = isHeavy ? Math.round(this.playerStats.attack * 1.65) : this.playerStats.attack;
+    const baseAttack = isHeavy
+      ? Math.round(this.playerStats.attack * 1.8)
+      : Math.max(1, Math.round(this.playerStats.attack * 0.78));
     const outcome = this.rollAttack(baseAttack, {
-      accuracy: isHeavy ? 0.82 : 0.93,
-      critChance: isHeavy ? 0.11 : 0.16,
+      accuracy: isHeavy ? 0.78 : 0.94,
+      critChance: isHeavy ? 0.1 : 0.12,
       variance: isHeavy ? 0.18 : 0.22,
     });
 
     if (isHeavy) {
-      this.heavyStrikeCooldown = 2;
+      this.heavyStrikeCooldown = 3;
     }
 
     this.runAttackSequence({
@@ -1134,7 +1136,7 @@ export class CombatScene extends Phaser.Scene {
 
     const message = outcome.hit
       ? isHeavy
-        ? outcome.critical ? `Heavy critical for ${outcome.damage}.` : `Heavy Strike hits for ${outcome.damage}.`
+        ? outcome.critical ? `Heavy critical for ${outcome.damage}. Recharging.` : `Heavy Strike hits for ${outcome.damage}. Recharging.`
         : outcome.critical ? `Critical hit for ${outcome.damage}.` : `You strike for ${outcome.damage}.`
       : isHeavy ? 'Heavy Strike misses.' : 'Your attack misses.';
     this.appendLog(message);

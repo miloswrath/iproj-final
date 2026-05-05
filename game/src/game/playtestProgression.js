@@ -1,6 +1,6 @@
 import { INVENTORY_ITEM_DEFS, createInventoryEntry } from './ui/inventoryData';
 
-const INVENTORY_SLOTS = 15;
+const INVENTORY_SLOTS = 24;
 const STORAGE_KEY = 'final.playtest.progression.v2';
 const EQUIPMENT_SLOT_DEFS = [
   { key: 'weapon', label: 'Weapon' },
@@ -11,8 +11,68 @@ const EQUIPMENT_SLOT_DEFS = [
 
 const BASE_PLAYER_COMBAT = {
   maxHp: 36,
-  attack: 9,
+  attack: 6,
   defendReduction: 6,
+};
+
+const SHOP_STOCK = [
+  {
+    itemId: 'field-tonic',
+    quantity: 1,
+    cost: [{ itemId: 'sun-coins', quantity: 6 }],
+  },
+  {
+    itemId: 'ember-tonic',
+    quantity: 1,
+    cost: [
+      { itemId: 'sun-coins', quantity: 10 },
+      { itemId: 'slime-jelly', quantity: 1 },
+    ],
+  },
+  {
+    itemId: 'iron-ore',
+    quantity: 1,
+    cost: [
+      { itemId: 'sun-coins', quantity: 12 },
+      { itemId: 'cracked-fang', quantity: 1 },
+    ],
+  },
+];
+
+const UPGRADE_DEFS = {
+  claws: {
+    id: 'claws',
+    label: 'Claws',
+    stat: 'attack',
+    maxRank: 5,
+    amountPerRank: 2,
+    baseCost: [
+      { itemId: 'iron-ore', quantity: 1 },
+      { itemId: 'ash-glass', quantity: 1 },
+    ],
+  },
+  ward: {
+    id: 'ward',
+    label: 'Ward',
+    stat: 'maxHp',
+    maxRank: 5,
+    amountPerRank: 5,
+    baseCost: [
+      { itemId: 'crystal-shard', quantity: 1 },
+      { itemId: 'tempered-bloom', quantity: 1 },
+    ],
+  },
+  guard: {
+    id: 'guard',
+    label: 'Guard',
+    stat: 'defendReduction',
+    maxRank: 4,
+    amountPerRank: 1,
+    baseCost: [
+      { itemId: 'iron-ore', quantity: 1 },
+      { itemId: 'echo-thread', quantity: 1 },
+    ],
+  },
 };
 
 function createEmptyInventorySlots() {
@@ -48,6 +108,11 @@ const progressionState = {
     slots: INVENTORY_SLOTS,
     items: createEmptyInventorySlots(),
     equipmentSlots: createEmptyEquipmentSlots(),
+  },
+  upgrades: {
+    claws: 0,
+    ward: 0,
+    guard: 0,
   },
   totals: {
     dungeonClears: 0,
@@ -102,6 +167,14 @@ function getLevelCombatFloor(level = getProgressionLevel()) {
   };
 }
 
+function defaultUpgradeState() {
+  return {
+    claws: 0,
+    ward: 0,
+    guard: 0,
+  };
+}
+
 function normalizeFriendshipState() {
   if (!progressionState.friendship || typeof progressionState.friendship !== 'object') {
     progressionState.friendship = defaultFriendshipState();
@@ -135,11 +208,23 @@ function normalizeInventoryState() {
   }
 
   const levelFloor = getLevelCombatFloor();
-  progressionState.playerCombat.maxHp = Math.max(progressionState.playerCombat.maxHp ?? levelFloor.maxHp, levelFloor.maxHp);
-  progressionState.playerCombat.attack = Math.max(progressionState.playerCombat.attack ?? levelFloor.attack, levelFloor.attack);
+  if (!progressionState.upgrades || typeof progressionState.upgrades !== 'object') {
+    progressionState.upgrades = defaultUpgradeState();
+  }
+
+  for (const upgrade of Object.values(UPGRADE_DEFS)) {
+    const rank = progressionState.upgrades[upgrade.id];
+    progressionState.upgrades[upgrade.id] = Number.isFinite(rank)
+      ? PhaserSafeClamp(Math.floor(rank), 0, upgrade.maxRank)
+      : 0;
+  }
+
+  const upgradeBonus = getUpgradeCombatBonus();
+  progressionState.playerCombat.maxHp = Math.max(progressionState.playerCombat.maxHp ?? levelFloor.maxHp, levelFloor.maxHp + upgradeBonus.maxHp);
+  progressionState.playerCombat.attack = Math.max(progressionState.playerCombat.attack ?? levelFloor.attack, levelFloor.attack + upgradeBonus.attack);
   progressionState.playerCombat.defendReduction = Math.max(
     progressionState.playerCombat.defendReduction ?? levelFloor.defendReduction,
-    levelFloor.defendReduction,
+    levelFloor.defendReduction + upgradeBonus.defendReduction,
   );
   progressionState.playerCombat.hp = Math.max(
     0,
@@ -152,6 +237,7 @@ function normalizeInventoryState() {
   if (!Array.isArray(progressionState.inventory.items)) {
     progressionState.inventory.items = createEmptyInventorySlots();
   }
+  progressionState.inventory.slots = INVENTORY_SLOTS;
 
   if (progressionState.inventory.items.length !== INVENTORY_SLOTS) {
     progressionState.inventory.items = Array.from({ length: INVENTORY_SLOTS }, (_, index) => (
@@ -159,9 +245,41 @@ function normalizeInventoryState() {
     ));
   }
 
+  progressionState.inventory.items = progressionState.inventory.items.map((item) => {
+    if (!item?.id) {
+      return item;
+    }
+    const itemDef = inventoryItemDefsById.get(item.id);
+    if (!itemDef) {
+      return item;
+    }
+    return {
+      ...item,
+      name: itemDef.name,
+      type: itemDef.type,
+      description: itemDef.description,
+      iconFrame: itemDef.iconFrame ?? 0,
+      iconTexture: itemDef.iconTexture ?? 'ui-inventory-icons',
+      combat: itemDef.combat ?? null,
+    };
+  });
+
   if (!Array.isArray(progressionState.inventory.equipmentSlots) || progressionState.inventory.equipmentSlots.length !== EQUIPMENT_SLOT_DEFS.length) {
     progressionState.inventory.equipmentSlots = createEmptyEquipmentSlots();
   }
+}
+
+function PhaserSafeClamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getUpgradeCombatBonus() {
+  const upgrades = progressionState.upgrades ?? defaultUpgradeState();
+  return {
+    attack: (upgrades.claws ?? 0) * UPGRADE_DEFS.claws.amountPerRank,
+    maxHp: (upgrades.ward ?? 0) * UPGRADE_DEFS.ward.amountPerRank,
+    defendReduction: (upgrades.guard ?? 0) * UPGRADE_DEFS.guard.amountPerRank,
+  };
 }
 
 export function getPlaytestInventoryState() {
@@ -190,6 +308,8 @@ export function getPlaytestProgressionSummary() {
     chestsOpened: progressionState.totals.chestsOpened,
     rewardsEarned: progressionState.totals.rewardsEarned,
     lastReward: progressionState.lastReward,
+    upgrades: { ...progressionState.upgrades },
+    combat: { ...progressionState.playerCombat },
   };
 }
 
@@ -203,6 +323,33 @@ function findInventoryEntry(itemId) {
   }
 
   return null;
+}
+
+function getInventoryQuantity(itemId) {
+  normalizeInventoryState();
+  return progressionState.inventory.items.reduce((sum, item) => (
+    item?.id === itemId ? sum + item.quantity : sum
+  ), 0);
+}
+
+export function getInventoryItemQuantity(itemId) {
+  return getInventoryQuantity(itemId);
+}
+
+function hasCost(cost = []) {
+  return cost.every((entry) => getInventoryQuantity(entry.itemId) >= entry.quantity);
+}
+
+function consumeCost(cost = []) {
+  if (!hasCost(cost)) {
+    return false;
+  }
+
+  for (const entry of cost) {
+    consumeInventoryItem(entry.itemId, entry.quantity);
+  }
+
+  return true;
 }
 
 function findFirstEmptySlotIndex() {
@@ -269,6 +416,109 @@ export function consumeInventoryItem(itemId, quantity = 1) {
   }
 
   return false;
+}
+
+export function grantInventoryItem(itemId, quantity = 1) {
+  normalizeInventoryState();
+  const itemDef = inventoryItemDefsById.get(itemId);
+  if (!itemDef || quantity <= 0) {
+    return false;
+  }
+
+  addInventoryQuantity(itemDef, quantity);
+  return true;
+}
+
+export function getVillageShopState() {
+  normalizeInventoryState();
+  return SHOP_STOCK.map((stock) => {
+    const itemDef = inventoryItemDefsById.get(stock.itemId);
+    return {
+      ...stock,
+      name: itemDef?.name ?? stock.itemId,
+      canBuy: hasCost(stock.cost),
+    };
+  });
+}
+
+export function buyVillageShopItem(stockIndex = 0) {
+  normalizeInventoryState();
+  const stock = SHOP_STOCK[stockIndex] ?? SHOP_STOCK[0];
+  const itemDef = inventoryItemDefsById.get(stock.itemId);
+  if (!itemDef) {
+    return { purchased: false, reason: 'unknown-item' };
+  }
+  if (!consumeCost(stock.cost)) {
+    return { purchased: false, reason: 'missing-cost', itemName: itemDef.name };
+  }
+
+  addInventoryQuantity(itemDef, stock.quantity);
+  return {
+    purchased: true,
+    itemName: itemDef.name,
+    quantity: stock.quantity,
+  };
+}
+
+function getUpgradeCost(upgrade, nextRank) {
+  return upgrade.baseCost.map((entry) => ({
+    ...entry,
+    quantity: entry.quantity + Math.floor((nextRank - 1) / 2),
+  }));
+}
+
+export function getUpgradeProgressionState() {
+  normalizeInventoryState();
+  return Object.values(UPGRADE_DEFS).map((upgrade) => {
+    const rank = progressionState.upgrades[upgrade.id] ?? 0;
+    const nextRank = rank + 1;
+    const maxed = rank >= upgrade.maxRank;
+    const cost = maxed ? [] : getUpgradeCost(upgrade, nextRank);
+    return {
+      id: upgrade.id,
+      label: upgrade.label,
+      stat: upgrade.stat,
+      rank,
+      maxRank: upgrade.maxRank,
+      amountPerRank: upgrade.amountPerRank,
+      cost,
+      maxed,
+      canBuy: !maxed && hasCost(cost),
+    };
+  });
+}
+
+export function purchaseUpgrade(upgradeId = 'claws') {
+  normalizeInventoryState();
+  const upgrade = UPGRADE_DEFS[upgradeId] ?? UPGRADE_DEFS.claws;
+  const rank = progressionState.upgrades[upgrade.id] ?? 0;
+  if (rank >= upgrade.maxRank) {
+    return { purchased: false, reason: 'maxed', label: upgrade.label };
+  }
+
+  const nextRank = rank + 1;
+  const cost = getUpgradeCost(upgrade, nextRank);
+  if (!consumeCost(cost)) {
+    return { purchased: false, reason: 'missing-cost', label: upgrade.label };
+  }
+
+  progressionState.upgrades[upgrade.id] = nextRank;
+  const currentHpRatio = progressionState.playerCombat.maxHp > 0
+    ? progressionState.playerCombat.hp / progressionState.playerCombat.maxHp
+    : 1;
+  const levelFloor = getLevelCombatFloor();
+  const upgradeBonus = getUpgradeCombatBonus();
+  progressionState.playerCombat.maxHp = levelFloor.maxHp + upgradeBonus.maxHp;
+  progressionState.playerCombat.attack = levelFloor.attack + upgradeBonus.attack;
+  progressionState.playerCombat.defendReduction = levelFloor.defendReduction + upgradeBonus.defendReduction;
+  progressionState.playerCombat.hp = Math.max(1, Math.round(progressionState.playerCombat.maxHp * currentHpRatio));
+  saveProgressionState();
+  return {
+    purchased: true,
+    label: upgrade.label,
+    rank: nextRank,
+    stat: upgrade.stat,
+  };
 }
 
 export function setPlaytestPlayerHp(hp) {

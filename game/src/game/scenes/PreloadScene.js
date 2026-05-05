@@ -151,6 +151,10 @@ export class PreloadScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 16,
     });
+    this.load.spritesheet('ui-custom-item-icons', assetPaths.itemIconsCustomUrl, {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
     this.load.image('ui-field-tonic-icon', assetPaths.fieldTonicIconUrl);
     this.load.image('ui-slime-jelly-icon', assetPaths.slimeJellyIconUrl);
     this.load.image('ui-crystal-shard-icon', assetPaths.crystalShardIconUrl);

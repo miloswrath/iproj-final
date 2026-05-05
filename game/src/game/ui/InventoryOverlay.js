@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 const OVERLAY_DEPTH = 20000;
-const SLOT_COLUMNS = 5;
+const SLOT_COLUMNS = 6;
 const SLOT_SIZE = 46;
 const SLOT_ICON_SIZE = 34;
 const SLOT_GAP = 10;
@@ -15,7 +15,7 @@ export class InventoryOverlay {
     this.scene = scene;
     this.inventoryState = inventoryState;
     this.title = options.title ?? 'Inventory';
-    this.subtitle = options.subtitle ?? 'I / Tab toggle | Arrow keys browse';
+    this.subtitle = options.subtitle ?? 'I / Tab toggle | Arrow keys or mouse select an item to read details';
     this.selectedSlotIndex = 0;
     this.isOpen = false;
 
@@ -37,12 +37,12 @@ export class InventoryOverlay {
     const { width, height } = this.scene.scale;
     const centerX = width / 2;
     const centerY = height / 2;
-    const panelWidth = 920;
+    const panelWidth = 984;
     const panelHeight = 388;
     const panelLeft = centerX - panelWidth / 2;
     const panelTop = centerY - panelHeight / 2;
     const detailPanelWidth = 292;
-    const gridPanelWidth = 328;
+    const gridPanelWidth = 384;
     const gearPanelWidth = 212;
     const detailPanelLeft = panelLeft + 24;
     const gridPanelLeft = detailPanelLeft + detailPanelWidth + 24;
@@ -112,7 +112,7 @@ export class InventoryOverlay {
       fontSize: '18px',
       color: '#20311c',
     });
-    this.gridTitleText = this.scene.add.text(gridPanelLeft + 92, panelTop + 14, 'Backpack', {
+    this.gridTitleText = this.scene.add.text(gridPanelLeft + 126, panelTop + 14, 'Backpack', {
       fontFamily: 'monospace',
       fontSize: '18px',
       color: '#20311c',
@@ -155,6 +155,11 @@ export class InventoryOverlay {
       color: '#3d3427',
       wordWrap: { width: 230 },
     });
+    this.detailDescriptionHeader = this.scene.add.text(detailPanelLeft + 28, sectionTop + 146, 'Description', {
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      color: '#6b4d2e',
+    });
     this.detailIconFrame = this.scene.add.rectangle(detailPanelLeft + 226, sectionTop + 66, 60, 60, 0xd8b37f, 1)
       .setStrokeStyle(3, 0x7f5b34, 0.95);
     this.detailIcon = this.scene.add.image(detailPanelLeft + 226, sectionTop + 66, 'ui-inventory-icons', 0)
@@ -172,11 +177,17 @@ export class InventoryOverlay {
       const slotY = slotOriginY + row * (SLOT_SIZE + SLOT_GAP);
 
       const slot = this.scene.add.rectangle(slotX, slotY, SLOT_SIZE, SLOT_SIZE, 0xdab482, 1)
-        .setStrokeStyle(3, 0x8a623a, 0.95);
+        .setStrokeStyle(3, 0x8a623a, 0.95)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.selectSlot(index))
+        .on('pointerover', () => this.selectSlot(index));
       const icon = this.scene.add.image(slotX, slotY, 'ui-inventory-icons', 0)
         .setDisplaySize(SLOT_ICON_SIZE, SLOT_ICON_SIZE)
         .setVisible(false)
-        .setAlpha(0);
+        .setAlpha(0)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.selectSlot(index))
+        .on('pointerover', () => this.selectSlot(index));
       const quantity = this.scene.add.text(slotX + 16, slotY + 14, '', {
         fontFamily: 'monospace',
         fontSize: '12px',
@@ -254,6 +265,7 @@ export class InventoryOverlay {
       this.detailTypeText,
       this.detailQuantityText,
       this.detailDescriptionText,
+      this.detailDescriptionHeader,
       this.detailIconFrame,
       this.detailIcon,
       this.selectionOutline,
@@ -335,6 +347,14 @@ export class InventoryOverlay {
     this.selectedSlotIndex = candidate >= totalSlots ? nextRow * SLOT_COLUMNS : candidate;
   }
 
+  selectSlot(index) {
+    if (!this.isOpen || index === this.selectedSlotIndex) {
+      return;
+    }
+    this.selectedSlotIndex = Phaser.Math.Clamp(index, 0, this.inventoryState.slots - 1);
+    this.refresh();
+  }
+
   refresh() {
     for (let index = 0; index < this.inventoryState.slots; index += 1) {
       const item = this.inventoryState.items[index] ?? null;
@@ -394,7 +414,7 @@ export class InventoryOverlay {
   applyItemIcon(icon, item, size) {
     const textureKey = item.iconTexture ?? 'ui-inventory-icons';
     icon.setTexture(textureKey);
-    if (textureKey === 'ui-inventory-icons') {
+    if (Number.isInteger(item.iconFrame)) {
       icon.setFrame(item.iconFrame);
     }
 

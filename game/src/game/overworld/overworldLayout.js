@@ -69,27 +69,20 @@ const BASE_DECOR_CLUSTERS = [
   {
     name: 'town-set',
     items: [
-      { x: 63, y: 7, kind: 'guild-hall-exterior', layer: 'foreground' },
-      { x: 55, y: 9, kind: 'house-1', layer: 'foreground' },
-      { x: 72, y: 9, kind: 'house-4', layer: 'foreground' },
-      { x: 55, y: 17, kind: 'house-3', layer: 'foreground' },
-      { x: 64, y: 19, kind: 'house-2', layer: 'foreground' },
-      { x: 72, y: 18, kind: 'house-1', layer: 'foreground' },
-      { x: 58, y: 14, kind: 'town-well', layer: 'decor' },
-      { x: 63, y: 13, kind: 'town-fountain', layer: 'decor' },
-      { x: 68, y: 12, kind: 'tent-1', layer: 'foreground' },
-      { x: 73, y: 14, kind: 'tent-2', layer: 'foreground' },
-      { x: 70, y: 17, kind: 'tent-3', layer: 'foreground' },
-      { x: 75, y: 11, kind: 'tent-4', layer: 'foreground' },
-      { x: 60, y: 21, kind: 'tower-pad-1', layer: 'foreground' },
-      { x: 75, y: 18, kind: 'tower-pad-2', layer: 'foreground' },
-      { x: 52, y: 15, kind: 'village-gazebo', layer: 'foreground' },
-      { x: 69, y: 14, kind: 'crate-stack', layer: 'decor' },
-      { x: 74, y: 11, kind: 'crate-stack', layer: 'decor' },
-      { x: 53, y: 13, kind: 'flower-bed', layer: 'decor' },
-      { x: 60, y: 16, kind: 'flower-bed', layer: 'decor' },
-      { x: 66, y: 16, kind: 'flower-bed', layer: 'decor' },
-      { x: 71, y: 21, kind: 'town-sign', layer: 'decor' },
+      { x: 64, y: 9, kind: 'town-hall', layer: 'foreground' },
+      { x: 55, y: 14, kind: 'house-2', layer: 'foreground' },
+      { x: 72, y: 14, kind: 'house-4', layer: 'foreground' },
+      { x: 56, y: 18, kind: 'village-gazebo', layer: 'foreground' },
+      { x: 70, y: 17, kind: 'tent-1', layer: 'foreground' },
+      { x: 73, y: 17, kind: 'tent-3', layer: 'foreground' },
+      { x: 60, y: 15, kind: 'town-well', layer: 'decor' },
+      { x: 64, y: 15, kind: 'town-fountain', layer: 'decor' },
+      { x: 69, y: 18, kind: 'crate-stack', layer: 'decor' },
+      { x: 72, y: 18, kind: 'crate-stack', layer: 'decor' },
+      { x: 57, y: 15, kind: 'flower-bed', layer: 'decor' },
+      { x: 66, y: 14, kind: 'flower-bed', layer: 'decor' },
+      { x: 62, y: 18, kind: 'flower-bed', layer: 'decor' },
+      { x: 73, y: 20, kind: 'town-sign', layer: 'decor' },
       { x: 53, y: 6, kind: 'willow-tree', layer: 'foreground' },
       { x: 75, y: 6, kind: 'willow-tree', layer: 'foreground' },
       { x: 53, y: 21, kind: 'mega-tree', layer: 'foreground' },
@@ -99,15 +92,15 @@ const BASE_DECOR_CLUSTERS = [
   {
     name: 'town-detail',
     items: [
-      { x: 58, y: 10, kind: 'grass', layer: 'decor' },
-      { x: 61, y: 10, kind: 'flower', layer: 'decor' },
-      { x: 66, y: 10, kind: 'grass', layer: 'decor' },
-      { x: 54, y: 15, kind: 'flower', layer: 'decor' },
-      { x: 61, y: 18, kind: 'grass', layer: 'decor' },
-      { x: 68, y: 18, kind: 'flower', layer: 'decor' },
-      { x: 74, y: 17, kind: 'grass', layer: 'decor' },
-      { x: 57, y: 20, kind: 'flower-bed', layer: 'decor' },
-      { x: 72, y: 12, kind: 'flower-bed', layer: 'decor' },
+      { x: 58, y: 11, kind: 'grass', layer: 'decor' },
+      { x: 62, y: 11, kind: 'flower', layer: 'decor' },
+      { x: 67, y: 11, kind: 'grass', layer: 'decor' },
+      { x: 54, y: 16, kind: 'flower', layer: 'decor' },
+      { x: 59, y: 18, kind: 'grass', layer: 'decor' },
+      { x: 67, y: 18, kind: 'flower', layer: 'decor' },
+      { x: 74, y: 16, kind: 'grass', layer: 'decor' },
+      { x: 58, y: 20, kind: 'flower-bed', layer: 'decor' },
+      { x: 71, y: 13, kind: 'flower-bed', layer: 'decor' },
     ],
   },
   {
@@ -170,14 +163,14 @@ const AMBIENT_ITEMS = [
   { x: 24, y: 31, kind: 'critter-loop' },
   { x: 38, y: 24, kind: 'critter-loop' },
   { x: 58, y: 15, kind: 'critter-loop' },
-  { x: 56, y: 12, kind: 'torch-fx' },
+  { x: 56, y: 14, kind: 'torch-fx' },
   { x: 62, y: 11, kind: 'torch-fx' },
   { x: 66, y: 11, kind: 'torch-fx' },
-  { x: 70, y: 13, kind: 'torch-fx' },
-  { x: 74, y: 15, kind: 'torch-fx' },
-  { x: 58, y: 16, kind: 'critter-loop' },
-  { x: 63, y: 15, kind: 'critter-loop' },
-  { x: 72, y: 13, kind: 'critter-loop' },
+  { x: 72, y: 14, kind: 'torch-fx' },
+  { x: 70, y: 18, kind: 'torch-fx' },
+  { x: 59, y: 16, kind: 'critter-loop' },
+  { x: 64, y: 16, kind: 'critter-loop' },
+  { x: 72, y: 18, kind: 'critter-loop' },
   { x: 63, y: 30, kind: 'critter-loop' },
   { x: 73, y: 33, kind: 'critter-loop' },
 ];
@@ -201,55 +194,40 @@ export const FRIEND_NPC_ANCHORS = {
     { placementId: 'field-unlocked-pond', tile: { x: 41, y: 16 }, mapRegion: 'field', placementRole: 'unlocked' },
   ],
   completed: [
-    { placementId: 'town-square-east', tile: { x: 58, y: 18 }, mapRegion: 'town', placementRole: 'completed' },
-    { placementId: 'town-square-west', tile: { x: 55, y: 14 }, mapRegion: 'town', placementRole: 'completed' },
-    { placementId: 'town-square-north', tile: { x: 67, y: 11 }, mapRegion: 'town', placementRole: 'completed' },
+    { placementId: 'town-square-east', tile: { x: 67, y: 16 }, mapRegion: 'town', placementRole: 'completed' },
+    { placementId: 'town-square-west', tile: { x: 61, y: 16 }, mapRegion: 'town', placementRole: 'completed' },
+    { placementId: 'town-square-north', tile: { x: 64, y: 12 }, mapRegion: 'town', placementRole: 'completed' },
   ],
 };
 
 const TOWN_NPCS = [
-  { x: 56, y: 12, role: 'blacksmith-stall', sprite: 'swordsman-idle', frame: 0, scale: 1.18, markerColor: 0xf1ba84 },
-  { x: 62, y: 11, role: 'scribe', sprite: 'swordsman-idle', frame: 1, scale: 1.16, markerColor: 0xd5c8ff },
-  { x: 65, y: 15, role: 'guard-captain', sprite: 'swordsman-idle', frame: 2, scale: 1.18, markerColor: 0xffbcbc },
-  { x: 70, y: 13, role: 'merchant-stall', sprite: 'vampire1-idle', frame: 2, scale: 1.12, markerColor: 0xf5d483 },
-  { x: 73, y: 15, role: 'provisions-stall', sprite: 'vampire1-idle', frame: 4, scale: 1.12, markerColor: 0x9dd7ff },
-  { x: 56, y: 16, role: 'inn-host', sprite: 'vampire1-idle', frame: 0, scale: 1.08, markerColor: 0xbde0ff },
-  { x: 72, y: 11, role: 'gate-watch', sprite: 'swordsman-idle', frame: 3, scale: 1.18, markerColor: 0xff9b9b },
-  { x: 61, y: 17, role: 'healer', sprite: 'plant1-idle', frame: 0, scale: 0.94, markerColor: 0xaff3c2 },
-  { x: 69, y: 17, role: 'pet-keeper', sprite: 'slime-idle', frame: 0, scale: 0.72, markerColor: 0x9ef0f0 },
-  { x: 55, y: 11, role: 'house-elder', sprite: 'vampire1-idle', frame: 1, scale: 1.08, markerColor: 0xb7f2a5 },
-  { x: 66, y: 29, role: 'shrine-keeper', sprite: 'plant1-idle', frame: 1, scale: 0.94, markerColor: 0xb8ffa8 },
+  { x: 64, y: 13, role: 'house-elder', sprite: 'npc-girl-1-idle', frame: 0, scale: 0.46, markerColor: 0xb7f2a5, tint: 0xffe3c4 },
+  { x: 56, y: 16, role: 'blacksmith-stall', sprite: 'swordsman2-idle', frame: 0, scale: 1.12, markerColor: 0xf1ba84 },
+  { x: 72, y: 16, role: 'guard-captain', sprite: 'swordsman3-idle', frame: 2, scale: 1.12, markerColor: 0xffbcbc },
+  { x: 56, y: 19, role: 'healer', sprite: 'plant1-idle', frame: 0, scale: 0.94, markerColor: 0xaff3c2 },
+  { x: 70, y: 18, role: 'merchant-stall', sprite: 'vampire1-idle', frame: 2, scale: 1.08, markerColor: 0xf5d483 },
 ];
 
 const STRUCTURE_BLOCKS = [
-  { x: 54, y: 9, w: 3, h: 2 },
-  { x: 61, y: 7, w: 5, h: 3 },
-  { x: 71, y: 9, w: 3, h: 2 },
-  { x: 54, y: 17, w: 3, h: 2 },
-  { x: 63, y: 19, w: 3, h: 2 },
-  { x: 71, y: 18, w: 3, h: 2 },
-  { x: 59, y: 21, w: 2, h: 1 },
-  { x: 74, y: 18, w: 2, h: 1 },
+  { x: 61, y: 8, w: 7, h: 4 },
+  { x: 54, y: 14, w: 3, h: 2 },
+  { x: 71, y: 14, w: 3, h: 2 },
+  { x: 55, y: 18, w: 2, h: 1 },
+  { x: 69, y: 17, w: 3, h: 1 },
+  { x: 72, y: 17, w: 3, h: 1 },
 ];
 
 const OBJECT_COLLISION_RECTS = [
-  { x: 55, y: 9, width: 92, height: 34, offsetX: 0, offsetY: 24 },
-  { x: 63, y: 7, width: 178, height: 76, offsetX: 0, offsetY: 38 },
-  { x: 72, y: 9, width: 92, height: 34, offsetX: 0, offsetY: 24 },
-  { x: 55, y: 17, width: 92, height: 34, offsetX: 0, offsetY: 24 },
-  { x: 64, y: 19, width: 84, height: 32, offsetX: 0, offsetY: 22 },
-  { x: 72, y: 18, width: 92, height: 34, offsetX: 0, offsetY: 24 },
-  { x: 68, y: 12, width: 62, height: 26, offsetX: 0, offsetY: 14 },
-  { x: 73, y: 14, width: 62, height: 26, offsetX: 0, offsetY: 14 },
+  { x: 64, y: 9, width: 150, height: 46, offsetX: 0, offsetY: 28 },
+  { x: 55, y: 14, width: 86, height: 34, offsetX: 0, offsetY: 24 },
+  { x: 72, y: 14, width: 92, height: 34, offsetX: 0, offsetY: 24 },
+  { x: 56, y: 18, width: 70, height: 32, offsetX: 0, offsetY: 18 },
   { x: 70, y: 17, width: 62, height: 26, offsetX: 0, offsetY: 14 },
-  { x: 75, y: 11, width: 62, height: 26, offsetX: 0, offsetY: 14 },
-  { x: 58, y: 14, width: 28, height: 22, offsetX: 0, offsetY: 12 },
-  { x: 63, y: 13, width: 34, height: 24, offsetX: 0, offsetY: 12 },
-  { x: 60, y: 21, width: 54, height: 30, offsetX: 0, offsetY: 8 },
-  { x: 75, y: 18, width: 50, height: 28, offsetX: 0, offsetY: 8 },
-  { x: 52, y: 15, width: 70, height: 32, offsetX: 0, offsetY: 18 },
-  { x: 69, y: 14, width: 34, height: 28, offsetX: 0, offsetY: 6 },
-  { x: 74, y: 11, width: 34, height: 28, offsetX: 0, offsetY: 6 },
+  { x: 73, y: 17, width: 62, height: 26, offsetX: 0, offsetY: 14 },
+  { x: 60, y: 15, width: 28, height: 22, offsetX: 0, offsetY: 12 },
+  { x: 64, y: 15, width: 34, height: 24, offsetX: 0, offsetY: 12 },
+  { x: 69, y: 18, width: 34, height: 28, offsetX: 0, offsetY: 6 },
+  { x: 72, y: 18, width: 34, height: 28, offsetX: 0, offsetY: 6 },
 ];
 
 function createGrid(defaultTile = GROUND_FIELD) {
@@ -394,14 +372,14 @@ function createGroundGrid() {
 
   carveRect(ground, TOWN_RECT.x, TOWN_RECT.y, TOWN_RECT.w, TOWN_RECT.h, GROUND_TOWN);
 
-  // Village roads connect civic, homes, and market districts instead of one tight plaza.
-  carveRect(ground, 53, 12, 23, 2, GROUND_PATH);
-  carveRect(ground, 53, 16, 21, 2, GROUND_PATH);
-  carveRect(ground, 58, 9, 2, 12, GROUND_PATH);
-  carveRect(ground, 66, 9, 2, 12, GROUND_PATH);
-  carveRect(ground, 70, 10, 4, 8, GROUND_PATH);
-  carveRect(ground, 60, 13, 7, 3, GROUND_PATH);
-  carveRect(ground, 63, 19, 3, 9, GROUND_PATH);
+  // Village roads form a small square with short branches to each progression contact.
+  carveRect(ground, 55, 14, 19, 2, GROUND_PATH);
+  carveRect(ground, 55, 18, 19, 2, GROUND_PATH);
+  carveRect(ground, 63, 10, 3, 11, GROUND_PATH);
+  carveRect(ground, 58, 15, 11, 4, GROUND_PATH);
+  carveRect(ground, 55, 13, 3, 6, GROUND_PATH);
+  carveRect(ground, 70, 13, 4, 7, GROUND_PATH);
+  carveRect(ground, 63, 20, 3, 8, GROUND_PATH);
   carveRect(ground, 66, 26, 5, 9, GROUND_PATH);
   carveRect(ground, 64, 29, 9, 5, GROUND_PATH);
 

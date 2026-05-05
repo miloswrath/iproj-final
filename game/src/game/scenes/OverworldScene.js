@@ -3,16 +3,23 @@ import { createOverworldLayout, FRIEND_NPC_ANCHORS, TileKinds, worldFromTile } f
 import { DeveloperModeController } from '../editor/DeveloperModeController';
 import { loadDevAssetRegistry } from '../editor/devAssetRegistry';
 import { InventoryOverlay } from '../ui/InventoryOverlay';
+import { INVENTORY_ITEM_DEFS } from '../ui/inventoryData';
 import { ConversationOverlay } from '../ui/ConversationOverlay';
 import { FriendRosterOverlay } from '../ui/FriendRosterOverlay';
 import { LoreCodexOverlay } from '../ui/LoreCodexOverlay';
 import { HUDController } from '../ui/HUDController';
 import {
   applyFriendshipUpdate,
+  buyVillageShopItem,
   clearPostBattleReturnContext,
   getActiveCharacterState,
+  getInventoryItemQuantity,
   getPlaytestInventoryState,
   getPlaytestProgressionSummary,
+  getUpgradeProgressionState,
+  getVillageShopState,
+  grantInventoryItem,
+  purchaseUpgrade,
   setActiveCharacterState,
   setFriendRoster,
   setPostBattleReturnContext,
@@ -47,6 +54,8 @@ export class OverworldScene extends Phaser.Scene {
     this.questEventStream = new QuestEventStream();
     this.codexOverlay = null;
     this.friendOverlay = null;
+    this.creativeGalleryOpen = false;
+    this.creativeGallerySelection = 0;
 
     // If returning from completed quest run, clear run state
     if (data?.questCompleted) {
@@ -182,7 +191,7 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     this.progressionLabel = this.add
-      .text(16, 160, `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} total loot`, {
+      .text(16, 160, `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} loot | Upgrades C${progressionSummary.upgrades?.claws ?? 0}/W${progressionSummary.upgrades?.ward ?? 0}/G${progressionSummary.upgrades?.guard ?? 0}`, {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffd98e',
@@ -191,6 +200,18 @@ export class OverworldScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(HUD_DEPTH);
+
+    this.villageActionLabel = this.add
+      .text(16, 208, '', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#d7f171',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH)
+      .setVisible(false);
 
     this.rewardLabel = this.add
       .text(16, 184, this.rewardSummaryText ? `Latest reward: ${this.rewardSummaryText}` : 'Latest reward: none yet', {
@@ -205,7 +226,7 @@ export class OverworldScene extends Phaser.Scene {
 
     this.inventoryOverlay = new InventoryOverlay(this, getPlaytestInventoryState(), {
       title: 'Field Inventory',
-      subtitle: 'I / Tab toggle | Arrow keys browse | Close to resume movement',
+      subtitle: 'I / Tab toggle | Arrow keys or mouse select an item to read details',
     });
 
     if (this.dungeonCompletionStatus === 'complete') {
@@ -215,6 +236,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     this.createMiniMap();
+    this.createWalletCounter();
 
     this.portalZoneMarker = this.add
       .rectangle(
@@ -244,6 +266,11 @@ export class OverworldScene extends Phaser.Scene {
     // C key opens lore codex
     this.codexKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     this.friendKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    this.creativeGalleryKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F9);
+    this.creativeGrantKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.creativeEscKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+    this.buildCreativeItemGallery();
 
     if (data?.questCompleted && data?.questTitle) {
       spawnQuestToast(this, {
@@ -256,6 +283,7 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       if (this.conversationOverlay) { this.conversationOverlay.destroy(); this.conversationOverlay = null; }
       if (this.friendOverlay) { this.friendOverlay.destroy(); this.friendOverlay = null; }
+      this.destroyCreativeItemGallery();
       if (this.hud) { this.hud.destroy(); this.hud = null; }
       if (this._unsubQuestStart) { this._unsubQuestStart(); this._unsubQuestStart = null; }
       if (this.questEventStream) { this.questEventStream.dispose(); this.questEventStream = null; }
@@ -265,6 +293,15 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   update() {
+    if (this.creativeGalleryOpen) {
+      this.updateCreativeItemGallery();
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
     if (this.conversationOverlay?.isOpen) {
       this.conversationOverlay.update();
       this.player.setVelocity(0, 0);
@@ -343,6 +380,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     const nearestNpc = this.updateAiNpcInteraction();
+    const nearestTownNpc = this.updateTownNpcInteraction();
     this.updateCompanionFollow();
 
     const left = this.keys.left.isDown || this.wasd.A.isDown;
@@ -366,6 +404,23 @@ export class OverworldScene extends Phaser.Scene {
         returnX: this.layout.dungeonEntryWorld.x,
         returnY: this.layout.dungeonEntryWorld.y,
       });
+      return;
+    }
+
+    if (nearestTownNpc && !nearestNpc && !inDungeonZone && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      this.handleTownNpcInteraction(nearestTownNpc);
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.creativeGalleryKey)) {
+      this.openCreativeItemGallery();
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
       return;
     }
 
@@ -867,7 +922,9 @@ export class OverworldScene extends Phaser.Scene {
       const worldX = item.x * this.layout.tileSize + this.layout.tileSize / 2;
       const worldY = item.y * this.layout.tileSize + this.layout.tileSize / 2;
 
-      if (item.kind === 'guild-hall-exterior') {
+      if (item.kind === 'town-hall') {
+        this.renderTownHall(worldX, worldY);
+      } else if (item.kind === 'guild-hall-exterior') {
         this.add
           .image(worldX, worldY - 20, 'guild-hall-exterior')
           .setDepth(worldY + 150)
@@ -951,6 +1008,41 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  renderTownHall(worldX, worldY) {
+    const depth = worldY + 145;
+    this.add.ellipse(worldX, worldY + 24, 170, 46, 0x000000, 0.22).setDepth(depth - 22);
+
+    this.add
+      .image(worldX, worldY - 20, 'overworld-house-2')
+      .setDepth(depth)
+      .setScale(1.05 * VILLAGE_STRUCTURE_SCALE);
+
+    this.add.rectangle(worldX, worldY - 54, 76, 12, 0x7f2f2a, 0.95)
+      .setStrokeStyle(2, 0x4a221f, 0.9)
+      .setDepth(depth + 1);
+    this.add.rectangle(worldX, worldY - 54, 56, 3, 0xd48743, 0.9).setDepth(depth + 2);
+
+    this.add.rectangle(worldX, worldY + 17, 54, 18, 0x5b3823, 0.96)
+      .setStrokeStyle(2, 0x2b1c13, 0.9)
+      .setDepth(depth + 3);
+    this.add.text(worldX, worldY + 7, 'HALL', {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#f8e0a0',
+    }).setOrigin(0.5, 0).setDepth(depth + 4);
+
+    this.add.rectangle(worldX - 56, worldY + 9, 9, 28, 0xe9d6a6, 0.95)
+      .setStrokeStyle(2, 0x6a4b31, 0.85)
+      .setDepth(depth + 2);
+    this.add.rectangle(worldX + 56, worldY + 9, 9, 28, 0xe9d6a6, 0.95)
+      .setStrokeStyle(2, 0x6a4b31, 0.85)
+      .setDepth(depth + 2);
+
+    this.add.circle(worldX, worldY - 39, 9, 0xf0c15e, 0.95)
+      .setStrokeStyle(2, 0x5a3522, 0.9)
+      .setDepth(depth + 3);
+  }
+
   renderAiNpcs() {
     if (this.aiNpcs?.length) {
       for (const entry of this.aiNpcs) {
@@ -985,6 +1077,9 @@ export class OverworldScene extends Phaser.Scene {
         .sprite(worldX, worldY, npc.spriteKey, 0)
         .setDepth(worldY + 120)
         .setScale(AI_NPC_WORLD_SCALE);
+      if (npc.tint) {
+        sprite.setTint(npc.tint);
+      }
       sprite.anims.play(animKey, true);
 
       const prompt = this.add
@@ -1022,6 +1117,167 @@ export class OverworldScene extends Phaser.Scene {
       this.friendOverlay = new FriendRosterOverlay(this);
     }
     return this.friendOverlay;
+  }
+
+  buildCreativeItemGallery() {
+    this.creativeItems = Object.values(INVENTORY_ITEM_DEFS);
+    const { width, height } = this.scale;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const panelWidth = Math.min(1120, width - 48);
+    const panelHeight = Math.min(620, height - 48);
+    const panelLeft = centerX - panelWidth / 2;
+    const panelTop = centerY - panelHeight / 2;
+    const columns = 7;
+    const cellWidth = Math.floor((panelWidth - 64) / columns);
+    const cellHeight = 102;
+    const gridLeft = panelLeft + 32;
+    const gridTop = panelTop + 84;
+
+    this.creativeGalleryElements = [];
+    this.creativeGalleryCells = [];
+
+    this.creativeBackdrop = this.add.rectangle(centerX, centerY, width, height, 0x061018, 0.82);
+    this.creativePanel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0xe8d1a2, 0.98)
+      .setStrokeStyle(4, 0x55361f, 0.95);
+    this.creativeTitle = this.add.text(panelLeft + 26, panelTop + 20, 'Creative Item Gallery', {
+      fontFamily: 'monospace',
+      fontSize: '22px',
+      color: '#20311c',
+    });
+    this.creativeHelp = this.add.text(panelLeft + 26, panelTop + 50, 'F9 / Esc close | Arrow keys inspect | Enter adds selected item', {
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      color: '#36503a',
+    });
+    this.creativeDetail = this.add.text(panelLeft + 26, panelTop + panelHeight - 60, '', {
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      color: '#2a2418',
+      wordWrap: { width: panelWidth - 52 },
+    });
+
+    this.creativeGalleryElements.push(
+      this.creativeBackdrop,
+      this.creativePanel,
+      this.creativeTitle,
+      this.creativeHelp,
+      this.creativeDetail,
+    );
+
+    for (let index = 0; index < this.creativeItems.length; index += 1) {
+      const item = this.creativeItems[index];
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const x = gridLeft + col * cellWidth + cellWidth / 2;
+      const y = gridTop + row * cellHeight + 44;
+
+      const box = this.add.rectangle(x, y, cellWidth - 12, 88, 0xf4e5bb, 1)
+        .setStrokeStyle(2, 0x8a623a, 0.9);
+      const icon = this.add.image(x, y - 18, item.iconTexture ?? 'ui-inventory-icons', 0)
+        .setDisplaySize(34, 34);
+      if (Number.isInteger(item.iconFrame)) {
+        icon.setFrame(item.iconFrame ?? 0);
+      }
+      const name = this.add.text(x, y + 12, item.name, {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#2a2418',
+        align: 'center',
+        wordWrap: { width: cellWidth - 24 },
+      }).setOrigin(0.5, 0);
+      const type = this.add.text(x, y + 48, item.type, {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#5f5037',
+      }).setOrigin(0.5, 0);
+
+      this.creativeGalleryCells.push({ box, icon, name, type });
+      this.creativeGalleryElements.push(box, icon, name, type);
+    }
+
+    for (const element of this.creativeGalleryElements) {
+      element.setScrollFactor(0);
+      element.setDepth(23000);
+      element.setVisible(false);
+    }
+  }
+
+  destroyCreativeItemGallery() {
+    for (const element of this.creativeGalleryElements ?? []) {
+      try { element.destroy(); } catch { /* ignore */ }
+    }
+    this.creativeGalleryElements = [];
+    this.creativeGalleryCells = [];
+  }
+
+  openCreativeItemGallery() {
+    this.creativeGalleryOpen = true;
+    this.setCreativeItemGalleryVisible(true);
+    this.refreshCreativeItemGallery();
+  }
+
+  closeCreativeItemGallery() {
+    this.creativeGalleryOpen = false;
+    this.setCreativeItemGalleryVisible(false);
+  }
+
+  setCreativeItemGalleryVisible(visible) {
+    for (const element of this.creativeGalleryElements ?? []) {
+      element.setVisible(visible);
+    }
+  }
+
+  updateCreativeItemGallery() {
+    if (
+      Phaser.Input.Keyboard.JustDown(this.creativeGalleryKey) ||
+      Phaser.Input.Keyboard.JustDown(this.creativeEscKey)
+    ) {
+      this.closeCreativeItemGallery();
+      return;
+    }
+
+    const columns = 7;
+    let moved = false;
+    if (Phaser.Input.Keyboard.JustDown(this.keys.left)) {
+      this.creativeGallerySelection = Phaser.Math.Wrap(this.creativeGallerySelection - 1, 0, this.creativeItems.length);
+      moved = true;
+    } else if (Phaser.Input.Keyboard.JustDown(this.keys.right)) {
+      this.creativeGallerySelection = Phaser.Math.Wrap(this.creativeGallerySelection + 1, 0, this.creativeItems.length);
+      moved = true;
+    } else if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
+      this.creativeGallerySelection = Phaser.Math.Wrap(this.creativeGallerySelection - columns, 0, this.creativeItems.length);
+      moved = true;
+    } else if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
+      this.creativeGallerySelection = Phaser.Math.Wrap(this.creativeGallerySelection + columns, 0, this.creativeItems.length);
+      moved = true;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.creativeGrantKey)) {
+      const item = this.creativeItems[this.creativeGallerySelection];
+      const quantity = item.id === 'sun-coins' ? 99 : 5;
+      grantInventoryItem(item.id, quantity);
+      this.setVillageActionResult(`Creative added +${quantity} ${item.name}.`);
+      this.refreshProgressionLabels();
+      this.inventoryOverlay?.refresh();
+    }
+
+    if (moved) {
+      this.refreshCreativeItemGallery();
+    }
+  }
+
+  refreshCreativeItemGallery() {
+    for (let index = 0; index < this.creativeGalleryCells.length; index += 1) {
+      const selected = index === this.creativeGallerySelection;
+      const cell = this.creativeGalleryCells[index];
+      cell.box.setFillStyle(selected ? 0xe7efc3 : 0xf4e5bb, 1);
+      cell.box.setStrokeStyle(2, selected ? 0x4bb27f : 0x8a623a, selected ? 1 : 0.9);
+      cell.icon.setAlpha(selected ? 1 : 0.88);
+    }
+
+    const item = this.creativeItems[this.creativeGallerySelection];
+    this.creativeDetail?.setText(`${item.name} | ${item.type} | ${item.id} - ${item.description}`);
   }
 
   getRenderableFriendNpcs() {
@@ -1223,6 +1479,7 @@ export class OverworldScene extends Phaser.Scene {
 
   renderTownNpcs() {
     const npcs = this.layout.townNpcs ?? [];
+    this.townNpcEntries = [];
 
     for (const npc of npcs) {
       const worldX = npc.x * this.layout.tileSize + this.layout.tileSize / 2;
@@ -1236,6 +1493,9 @@ export class OverworldScene extends Phaser.Scene {
         .sprite(worldX, worldY + 1, npc.sprite, npc.frame ?? 0)
         .setDepth(worldY + 120)
         .setScale(actorScale);
+      if (npc.tint) {
+        actor.setTint(npc.tint);
+      }
 
       this.tweens.add({
         targets: actor,
@@ -1258,7 +1518,179 @@ export class OverworldScene extends Phaser.Scene {
         repeat: -1,
         ease: 'sine.inOut',
       });
+
+      const roleText = this.getTownRoleLabel(npc.role);
+      this.add
+        .text(worldX, worldY + 26, roleText, {
+          fontFamily: 'monospace',
+          fontSize: '10px',
+          color: '#f3f3e2',
+          backgroundColor: '#00000077',
+          padding: { x: 3, y: 1 },
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(worldY + 131);
+
+      const prompt = this.add
+        .text(worldX, worldY - 36, '[ E ]', {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#fff7d9',
+          backgroundColor: '#3a2a16',
+          padding: { x: 4, y: 2 },
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(worldY + 132)
+        .setVisible(false);
+
+      this.townNpcEntries.push({ config: npc, prompt, worldX, worldY });
     }
+  }
+
+  getTownRoleLabel(role) {
+    const labels = {
+      'blacksmith-stall': 'Upgrade Smith',
+      scribe: 'Quest Records',
+      'guard-captain': 'Training',
+      'merchant-stall': 'Item Shop',
+      'provisions-stall': 'Materials',
+      'inn-host': 'Rest Point',
+      'gate-watch': 'Dungeon Watch',
+      healer: 'Healer',
+      'pet-keeper': 'Companion Care',
+      'house-elder': 'Quest Hub',
+      'shrine-keeper': 'Dungeon Shrine',
+    };
+    return labels[role] ?? 'Village Role';
+  }
+
+  updateTownNpcInteraction() {
+    if (!this.townNpcEntries?.length) {
+      this.villageActionLabel?.setVisible(false);
+      return null;
+    }
+
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const entry of this.townNpcEntries) {
+      const dx = this.player.x - entry.worldX;
+      const dy = this.player.y - entry.worldY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const inRange = dist <= 42;
+      entry.prompt.setVisible(inRange);
+      if (inRange && dist < nearestDist) {
+        nearestDist = dist;
+        nearest = entry;
+      }
+    }
+
+    if (nearest) {
+      this.villageActionLabel
+        ?.setText(this.getTownInteractionHint(nearest.config.role))
+        .setVisible(true);
+    } else {
+      this.villageActionLabel?.setVisible(false);
+    }
+
+    return nearest;
+  }
+
+  getTownInteractionHint(role) {
+    if (role === 'merchant-stall') {
+      const shopState = getVillageShopState();
+      const stock = shopState.find((entry) => entry.canBuy) ?? shopState[0];
+      return `Shop: E buys ${stock.name} (${stock.canBuy ? 'ready' : 'need goods'})`;
+    }
+    if (role === 'provisions-stall') {
+      const stock = getVillageShopState()[1];
+      return `Shop: E buys ${stock.name} (${stock.canBuy ? 'ready' : 'need trade goods'})`;
+    }
+    if (role === 'blacksmith-stall') {
+      const upgrade = getUpgradeProgressionState().find((entry) => entry.id === 'claws');
+      return `Upgrade: E improves Claws rank ${upgrade?.rank ?? 0}/${upgrade?.maxRank ?? 5}`;
+    }
+    if (role === 'healer') {
+      const upgrade = getUpgradeProgressionState().find((entry) => entry.id === 'ward');
+      return `Upgrade: E improves Ward rank ${upgrade?.rank ?? 0}/${upgrade?.maxRank ?? 5}`;
+    }
+    if (role === 'guard-captain') {
+      const upgrade = getUpgradeProgressionState().find((entry) => entry.id === 'guard');
+      return `Upgrade: E improves Guard rank ${upgrade?.rank ?? 0}/${upgrade?.maxRank ?? 4}`;
+    }
+    if (role === 'shrine-keeper' || role === 'gate-watch') {
+      return 'Dungeon access: use the shrine road gate.';
+    }
+    return `${this.getTownRoleLabel(role)}: progression contact.`;
+  }
+
+  handleTownNpcInteraction(entry) {
+    const role = entry.config.role;
+    let result;
+
+    if (role === 'merchant-stall') {
+      const shopState = getVillageShopState();
+      const stockIndex = shopState.findIndex((stock) => stock.canBuy);
+      result = buyVillageShopItem(stockIndex >= 0 ? stockIndex : 0);
+      this.setVillageActionResult(result.purchased ? `Bought ${result.itemName}.` : `Shop needs more currency for ${result.itemName ?? 'that item'}.`);
+    } else if (role === 'provisions-stall') {
+      result = buyVillageShopItem(1);
+      this.setVillageActionResult(result.purchased ? `Bought ${result.itemName}.` : `Materials stall needs more trade goods.`);
+    } else if (role === 'blacksmith-stall') {
+      result = purchaseUpgrade('claws');
+      this.setVillageActionResult(result.purchased ? `${result.label} upgraded to rank ${result.rank}.` : `${result.label} upgrade needs dungeon materials.`);
+    } else if (role === 'healer') {
+      result = purchaseUpgrade('ward');
+      this.setVillageActionResult(result.purchased ? `${result.label} upgraded to rank ${result.rank}.` : `${result.label} upgrade needs dungeon materials.`);
+    } else if (role === 'guard-captain') {
+      result = purchaseUpgrade('guard');
+      this.setVillageActionResult(result.purchased ? `${result.label} upgraded to rank ${result.rank}.` : `${result.label} upgrade needs dungeon materials.`);
+    } else {
+      this.setVillageActionResult(this.getTownInteractionHint(role));
+    }
+
+    this.refreshProgressionLabels();
+  }
+
+  setVillageActionResult(message) {
+    this.villageActionLabel?.setText(message).setVisible(true);
+    this.rewardLabel?.setText(`Latest reward: ${message}`);
+  }
+
+  createWalletCounter() {
+    const walletText = this.getWalletText();
+    const x = this.miniMapOrigin.x;
+    const y = this.miniMapOrigin.y + (this.layout.rows * this.miniMapCellPx) + 12;
+    this.walletCounterLabel = this.add
+      .text(x, y, walletText, {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffe08a',
+        backgroundColor: '#000000aa',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(HUD_DEPTH + 14);
+  }
+
+  getWalletText() {
+    return `Coins: ${getInventoryItemQuantity('sun-coins')}`;
+  }
+
+  refreshWalletCounter() {
+    this.walletCounterLabel?.setText(this.getWalletText());
+  }
+
+  refreshProgressionLabels() {
+    const progressionSummary = getPlaytestProgressionSummary();
+    const inventoryCount = getPlaytestInventoryState().items.reduce(
+      (sum, item) => sum + (item?.quantity ?? 0),
+      0,
+    );
+    const upgrades = progressionSummary.upgrades ?? {};
+    this.progressionLabel?.setText(
+      `Progression: ${progressionSummary.dungeonClears} clears | ${inventoryCount} loot | Upgrades C${upgrades.claws ?? 0}/W${upgrades.ward ?? 0}/G${upgrades.guard ?? 0}`,
+    );
+    this.refreshWalletCounter();
   }
 
   renderLandmarks() {
