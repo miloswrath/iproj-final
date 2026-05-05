@@ -18,7 +18,7 @@ import {
   updatePlayerProfile,
 } from "../memory/updater.js";
 import { generateSummaries } from "../memory/summarizer.js";
-import { notifyQuestStart } from "../notify/game-api.js";
+import { notifyQuestStart, postQuestStartNotification } from "../notify/game-api.js";
 
 export async function runPostConversationPipeline(session: Session): Promise<void> {
   const characterName = session.activeCharacter.name;
@@ -84,6 +84,35 @@ export async function runWithNotification(
     },
     terminationReason: session.conversationState.terminationReason ?? "rule",
   });
+}
+
+export async function runWithStrictNotification(
+  session: Session,
+  questId: string,
+  questTitle: string = questId,
+  lore: string | null = null
+): Promise<boolean> {
+  await runPostConversationPipeline(session);
+
+  const { relationship } = session.activeMemory;
+  const playerLevel = session.authoritativeState?.player.level ?? 1;
+  const payload = {
+    character: session.activeCharacter.name,
+    questId,
+    questTitle,
+    lore,
+    playerState: { level: playerLevel },
+    relationshipSnapshot: {
+      trust: relationship.trust,
+      dependency: relationship.dependency,
+      bond: relationship.bond,
+      wariness: relationship.wariness,
+    },
+    terminationReason: session.conversationState.terminationReason ?? "rule",
+  } satisfies Parameters<typeof postQuestStartNotification>[0];
+
+  const result = await postQuestStartNotification(payload);
+  return result.ok;
 }
 
 function validateQuestCompletionPayload(payload: QuestCompletionPayload): boolean {

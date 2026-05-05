@@ -38,6 +38,10 @@ async function postNotification(
   }
 }
 
+export async function postQuestStartNotification(payload: QuestStartPayload): Promise<RequestResult> {
+  return await postNotification(notificationUrl("quest_start"), payload);
+}
+
 function notificationUrl(type: PendingNotificationRecord["type"]): string {
   if (type === "quest_complete") {
     return process.env["GAME_API_URL_COMPLETE"] ?? "http://localhost:3000/quest/complete";
@@ -90,7 +94,7 @@ async function savePendingNotification(record: PendingNotificationRecord): Promi
 }
 
 export async function notifyQuestStart(payload: QuestStartPayload): Promise<void> {
-  const result = await postNotification(notificationUrl("quest_start"), payload);
+  const result = await postQuestStartNotification(payload);
 
   if (result.ok) return;
 
