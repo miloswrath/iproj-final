@@ -8,10 +8,10 @@ import { ConversationOverlay } from '../ui/ConversationOverlay';
 import { FriendRosterOverlay } from '../ui/FriendRosterOverlay';
 import { LoreCodexOverlay } from '../ui/LoreCodexOverlay';
 import { HUDController } from '../ui/HUDController';
+import { ShopUpgradeOverlay } from '../ui/ShopUpgradeOverlay';
 import {
   activateFollowerForNpc,
   applyFriendshipUpdate,
-  buyVillageShopItem,
   clearFollowerState,
   clearPostBattleReturnContext,
   ensureStarterSelection,
@@ -23,7 +23,6 @@ import {
   getUpgradeProgressionState,
   getVillageShopState,
   grantInventoryItem,
-  purchaseUpgrade,
   restoreFollowerAfterTransition,
   setActiveCharacterState,
   setFriendRoster,
@@ -251,6 +250,12 @@ export class OverworldScene extends Phaser.Scene {
       title: 'Field Inventory',
       subtitle: 'I / Tab toggle | Arrow keys or mouse select an item to read details',
     });
+    this.shopUpgradeOverlay = new ShopUpgradeOverlay(this, {
+      onAfterPurchase: (message) => {
+        this.setVillageActionResult(message);
+        this.refreshProgressionLabels();
+      },
+    });
 
     if (this.dungeonCompletionStatus === 'complete') {
       this.completionLabel.setText('Dungeon status: encounter completed.').setVisible(true);
@@ -353,6 +358,14 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     if (this.inventoryOverlay?.update()) {
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.setFrame(this.getIdleFrame(this.lastDirection));
+      this.updateMiniMap();
+      return;
+    }
+
+    if (this.shopUpgradeOverlay?.update()) {
       this.player.setVelocity(0, 0);
       this.player.anims.stop();
       this.player.setFrame(this.getIdleFrame(this.lastDirection));
@@ -1717,11 +1730,14 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (role === 'healer') {
       const upgrade = getUpgradeProgressionState().find((entry) => entry.id === 'ward');
-      return `Upgrade: E improves Ward rank ${upgrade?.rank ?? 0}/${upgrade?.maxRank ?? 5}`;
+      return `Healer: E opens tonics + Ward rank ${upgrade?.rank ?? 0}/${upgrade?.maxRank ?? 5}`;
     }
     if (role === 'guard-captain') {
       const upgrade = getUpgradeProgressionState().find((entry) => entry.id === 'guard');
-      return `Upgrade: E improves Guard rank ${upgrade?.rank ?? 0}/${upgrade?.maxRank ?? 4}`;
+      return `Trainer: E opens Guard rank ${upgrade?.rank ?? 0}/${upgrade?.maxRank ?? 4}`;
+    }
+    if (role === 'house-elder' || role === 'scribe') {
+      return 'Quest hub: E opens village records.';
     }
     if (role === 'shrine-keeper' || role === 'gate-watch') {
       return 'Dungeon access: use the shrine road gate.';
@@ -1731,25 +1747,25 @@ export class OverworldScene extends Phaser.Scene {
 
   handleTownNpcInteraction(entry) {
     const role = entry.config.role;
-    let result;
 
     if (role === 'merchant-stall') {
-      const shopState = getVillageShopState();
-      const stockIndex = shopState.findIndex((stock) => stock.canBuy);
-      result = buyVillageShopItem(stockIndex >= 0 ? stockIndex : 0);
-      this.setVillageActionResult(result.purchased ? `Bought ${result.itemName}.` : `Shop needs more currency for ${result.itemName ?? 'that item'}.`);
+      this.shopUpgradeOverlay?.open('shop', 'shop-0');
+      this.setVillageActionResult('Village shop opened.');
     } else if (role === 'provisions-stall') {
-      result = buyVillageShopItem(1);
-      this.setVillageActionResult(result.purchased ? `Bought ${result.itemName}.` : `Materials stall needs more trade goods.`);
+      this.shopUpgradeOverlay?.open('shop', 'shop-1');
+      this.setVillageActionResult('Materials shop opened.');
     } else if (role === 'blacksmith-stall') {
-      result = purchaseUpgrade('claws');
-      this.setVillageActionResult(result.purchased ? `${result.label} upgraded to rank ${result.rank}.` : `${result.label} upgrade needs dungeon materials.`);
+      this.shopUpgradeOverlay?.open('upgrades', 'claws');
+      this.setVillageActionResult('Upgrade workshop opened.');
     } else if (role === 'healer') {
-      result = purchaseUpgrade('ward');
-      this.setVillageActionResult(result.purchased ? `${result.label} upgraded to rank ${result.rank}.` : `${result.label} upgrade needs dungeon materials.`);
+      this.shopUpgradeOverlay?.open('healer', 'ward');
+      this.setVillageActionResult('Healer shop opened.');
     } else if (role === 'guard-captain') {
-      result = purchaseUpgrade('guard');
-      this.setVillageActionResult(result.purchased ? `${result.label} upgraded to rank ${result.rank}.` : `${result.label} upgrade needs dungeon materials.`);
+      this.shopUpgradeOverlay?.open('trainer', 'guard');
+      this.setVillageActionResult('Training yard opened.');
+    } else if (role === 'house-elder' || role === 'scribe') {
+      this.shopUpgradeOverlay?.open('quests', 'quest-loop');
+      this.setVillageActionResult('Quest hub opened.');
     } else {
       this.setVillageActionResult(this.getTownInteractionHint(role));
     }
