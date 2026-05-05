@@ -81,6 +81,71 @@ async function main() {
     };
   });
 
+  const shopOverlayState = await page.evaluate(() => {
+    const runtime = window.__gameRuntime ?? window.__playtestGame;
+    const overworld = runtime.scene.keys.overworld;
+    overworld.shopUpgradeOverlay.open('shop', 'shop-0');
+    return {
+      isOpen: Boolean(overworld.shopUpgradeOverlay?.isOpen),
+      title: overworld.shopUpgradeOverlay?.titleText?.text ?? '',
+      feedback: overworld.shopUpgradeOverlay?.feedbackText?.text ?? '',
+      firstRow: overworld.shopUpgradeOverlay?.rowNameTexts?.[0]?.text ?? '',
+    };
+  });
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'shop-overlay.png') });
+
+  const upgradeOverlayState = await page.evaluate(() => {
+    const runtime = window.__gameRuntime ?? window.__playtestGame;
+    const overworld = runtime.scene.keys.overworld;
+    overworld.shopUpgradeOverlay.open('upgrades', 'claws');
+    return {
+      isOpen: Boolean(overworld.shopUpgradeOverlay?.isOpen),
+      title: overworld.shopUpgradeOverlay?.titleText?.text ?? '',
+      feedback: overworld.shopUpgradeOverlay?.feedbackText?.text ?? '',
+      firstRow: overworld.shopUpgradeOverlay?.rowNameTexts?.[0]?.text ?? '',
+    };
+  });
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'upgrade-overlay.png') });
+
+  const healerOverlayState = await page.evaluate(() => {
+    const runtime = window.__gameRuntime ?? window.__playtestGame;
+    const overworld = runtime.scene.keys.overworld;
+    overworld.shopUpgradeOverlay.open('healer', 'ward');
+    return {
+      isOpen: Boolean(overworld.shopUpgradeOverlay?.isOpen),
+      title: overworld.shopUpgradeOverlay?.titleText?.text ?? '',
+      feedback: overworld.shopUpgradeOverlay?.feedbackText?.text ?? '',
+      firstRow: overworld.shopUpgradeOverlay?.rowNameTexts?.[0]?.text ?? '',
+    };
+  });
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'healer-overlay.png') });
+
+  const trainerOverlayState = await page.evaluate(() => {
+    const runtime = window.__gameRuntime ?? window.__playtestGame;
+    const overworld = runtime.scene.keys.overworld;
+    overworld.shopUpgradeOverlay.open('trainer', 'guard');
+    return {
+      isOpen: Boolean(overworld.shopUpgradeOverlay?.isOpen),
+      title: overworld.shopUpgradeOverlay?.titleText?.text ?? '',
+      feedback: overworld.shopUpgradeOverlay?.feedbackText?.text ?? '',
+      firstRow: overworld.shopUpgradeOverlay?.rowNameTexts?.[0]?.text ?? '',
+    };
+  });
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'trainer-overlay.png') });
+
+  const questHubOverlayState = await page.evaluate(() => {
+    const runtime = window.__gameRuntime ?? window.__playtestGame;
+    const overworld = runtime.scene.keys.overworld;
+    overworld.shopUpgradeOverlay.open('quests', 'quest-loop');
+    return {
+      isOpen: Boolean(overworld.shopUpgradeOverlay?.isOpen),
+      title: overworld.shopUpgradeOverlay?.titleText?.text ?? '',
+      feedback: overworld.shopUpgradeOverlay?.feedbackText?.text ?? '',
+      firstRow: overworld.shopUpgradeOverlay?.rowNameTexts?.[0]?.text ?? '',
+    };
+  });
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'quest-hub-overlay.png') });
+
   const dungeonState = await page.evaluate(() => {
     const runtime = window.__gameRuntime ?? window.__playtestGame;
     runtime.scene.start('dungeon', {
@@ -208,6 +273,11 @@ async function main() {
   const report = {
     appUrl: APP_URL,
     overworldState,
+    shopOverlayState,
+    upgradeOverlayState,
+    healerOverlayState,
+    trainerOverlayState,
+    questHubOverlayState,
     dungeonState,
     combatState,
     combatReport: {
@@ -218,6 +288,11 @@ async function main() {
     screenshots: {
       title: path.join(SCREENSHOT_DIR, 'title.png'),
       overworld: path.join(SCREENSHOT_DIR, 'overworld.png'),
+      shopOverlay: path.join(SCREENSHOT_DIR, 'shop-overlay.png'),
+      upgradeOverlay: path.join(SCREENSHOT_DIR, 'upgrade-overlay.png'),
+      healerOverlay: path.join(SCREENSHOT_DIR, 'healer-overlay.png'),
+      trainerOverlay: path.join(SCREENSHOT_DIR, 'trainer-overlay.png'),
+      questHubOverlay: path.join(SCREENSHOT_DIR, 'quest-hub-overlay.png'),
       dungeon: path.join(SCREENSHOT_DIR, 'dungeon.png'),
       combat: path.join(SCREENSHOT_DIR, 'combat.png'),
     },
