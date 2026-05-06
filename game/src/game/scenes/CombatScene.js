@@ -150,7 +150,7 @@ export class CombatScene extends Phaser.Scene {
     super('combat');
   }
 
-  create(data) {
+  create(data = {}) {
     this.returning = false;
     this.returnContext = data.returnContext ?? {};
     this.layoutState = data?.layoutState ?? this.returnContext.layoutState ?? null;
@@ -1261,6 +1261,11 @@ export class CombatScene extends Phaser.Scene {
   }
 
   runHeavyAttackSequence({ attacker, attackerIdle, outcome, onHit = null, onComplete = null }) {
+    if (!attacker?.active) {
+      onComplete?.();
+      return;
+    }
+
     const startX = this.ui.playerX;
     const startY = this.ui.playerY;
     const windupX = startX - 26;
@@ -1269,11 +1274,30 @@ export class CombatScene extends Phaser.Scene {
     const slamY = this.ui.enemyY - 42;
     const baseScale = PLAYER_VISUAL_CONFIG.scale;
     const chargeColor = outcome.critical ? 0xfff3a0 : 0xffc857;
+    const temporaryEffects = [];
+    const destroyEffect = (effect) => {
+      if (effect?.active) {
+        effect.destroy();
+      }
+    };
+    const finishHeavyAttack = () => {
+      temporaryEffects.forEach(destroyEffect);
+      if (attacker?.active) {
+        attacker.clearTint();
+        attacker.setPosition(startX, startY);
+        attacker.setAngle(0);
+        attacker.setScale(baseScale);
+        attacker.play(attackerIdle);
+      }
+      this.playerIdleFloat?.resume();
+      this.time.delayedCall(250, () => onComplete?.());
+    };
     const chargeRing = this.add.circle(startX + 8, startY + 10, 26, chargeColor, 0.14)
       .setStrokeStyle(4, chargeColor, 0.72)
       .setDepth(attacker.depth - 1);
     const groundMark = this.add.ellipse(startX + 4, startY + 42, 82, 18, 0x4a2a12, 0.22)
       .setDepth(attacker.depth - 2);
+    temporaryEffects.push(chargeRing, groundMark);
 
     this.playerIdleFloat?.pause();
     attacker.play('combat-player-attack');
@@ -1286,7 +1310,7 @@ export class CombatScene extends Phaser.Scene {
       alpha: 0,
       duration: 250,
       ease: 'Cubic.easeOut',
-      onComplete: () => chargeRing.destroy(),
+      onComplete: () => destroyEffect(chargeRing),
     });
 
     this.tweens.add({
@@ -1295,7 +1319,7 @@ export class CombatScene extends Phaser.Scene {
       alpha: 0.38,
       duration: 150,
       yoyo: true,
-      onComplete: () => groundMark.destroy(),
+      onComplete: () => destroyEffect(groundMark),
     });
 
     this.tweens.add({
@@ -1308,8 +1332,17 @@ export class CombatScene extends Phaser.Scene {
       duration: 170,
       ease: 'Back.easeIn',
       onComplete: () => {
+        if (!attacker?.active) {
+          finishHeavyAttack();
+          return;
+        }
+
         this.spawnHeavyAfterimage(attacker, 0.28);
-        this.time.delayedCall(70, () => this.spawnHeavyAfterimage(attacker, 0.18));
+        this.time.delayedCall(70, () => {
+          if (attacker?.active) {
+            this.spawnHeavyAfterimage(attacker, 0.18);
+          }
+        });
         this.tweens.add({
           targets: attacker,
           x: slamX,
@@ -1320,6 +1353,11 @@ export class CombatScene extends Phaser.Scene {
           duration: 190,
           ease: 'Quad.easeIn',
           onComplete: () => {
+            if (!attacker?.active) {
+              finishHeavyAttack();
+              return;
+            }
+
             if (outcome.hit) {
               onHit?.();
               this.spawnAttackEffect('heavy-kitty', true, this.ui.enemyX, this.ui.enemyY, outcome.critical);
@@ -1335,15 +1373,7 @@ export class CombatScene extends Phaser.Scene {
               scaleY: baseScale,
               duration: 230,
               ease: 'Cubic.easeOut',
-              onComplete: () => {
-                attacker.clearTint();
-                attacker.setPosition(startX, startY);
-                attacker.setAngle(0);
-                attacker.setScale(baseScale);
-                attacker.play(attackerIdle);
-                this.playerIdleFloat?.resume();
-                this.time.delayedCall(250, () => onComplete?.());
-              },
+              onComplete: finishHeavyAttack,
             });
           },
         });
@@ -1352,7 +1382,12 @@ export class CombatScene extends Phaser.Scene {
   }
 
   spawnHeavyAfterimage(source, alpha) {
-    const ghost = this.add.sprite(source.x, source.y, source.texture.key, source.frame.name)
+    if (!source?.active || !source.texture?.key) {
+      return;
+    }
+
+    const frame = source.frame?.name ?? source.frame?.index ?? 0;
+    const ghost = this.add.sprite(source.x, source.y, source.texture.key, frame)
       .setScale(source.scaleX, source.scaleY)
       .setAngle(source.angle)
       .setTint(0xffd36b)

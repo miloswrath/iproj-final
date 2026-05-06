@@ -187,7 +187,7 @@ async function main() {
 
     runtime.scene.start('combat', {
       playerStats: { maxHp: 30, hp: 18, attack: 8, defendReduction: 4 },
-      enemyStats: { name: 'Cave Vampire', maxHp: 32, attack: 8, spriteKey: 'vampire1-idle' },
+      enemyStats: { name: 'Cave Vampire', maxHp: 80, attack: 8, spriteKey: 'vampire1-idle' },
       returnContext: {
         returnX: 170,
         returnY: 170,
@@ -250,6 +250,42 @@ async function main() {
       animKey: combat.playerSprite.anims.currentAnim ? combat.playerSprite.anims.currentAnim.key : null,
     };
 
+    runtime.scene.start('combat', {
+      playerStats: { maxHp: 30, hp: 30, attack: 8, defendReduction: 4 },
+      enemyStats: { name: 'Cave Vampire', maxHp: 80, attack: 1, spriteKey: 'vampire1-idle' },
+      returnContext: {
+        returnX: 170,
+        returnY: 170,
+        layoutState: { defeatedEnemyIds: [], enemyCount: 1 },
+        dungeonSpawnX: 200,
+        dungeonSpawnY: 200,
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const heavyCombat = runtime.scene.keys.combat;
+    heavyCombat.handleAction('heavy');
+
+    const heavyImmediate = {
+      animKey: heavyCombat.playerSprite.anims.currentAnim ? heavyCombat.playerSprite.anims.currentAnim.key : null,
+      actionLocked: heavyCombat.actionLocked,
+      cooldown: heavyCombat.heavyStrikeCooldown,
+      actionLog: [...heavyCombat.actionLog],
+    };
+
+    await new Promise((resolve) => setTimeout(resolve, 4600));
+
+    const heavyAfterEnemy = {
+      playerTurn: heavyCombat.playerTurn,
+      actionLocked: heavyCombat.actionLocked,
+      cooldown: heavyCombat.heavyStrikeCooldown,
+      enemyHp: heavyCombat.enemyStats.hp,
+      playerHp: heavyCombat.playerStats.hp,
+      actionLog: [...heavyCombat.actionLog],
+      animKey: heavyCombat.playerSprite.anims.currentAnim ? heavyCombat.playerSprite.anims.currentAnim.key : null,
+    };
+
     const damageValues = Array.from({ length: 25 }, () => combat.rollAttack(8, {
       accuracy: 0.91,
       critChance: 0.17,
@@ -263,10 +299,12 @@ async function main() {
       itemAfterEnemy,
       attackImmediate,
       attackMid,
+      heavyImmediate,
+      heavyAfterEnemy,
       damageValues,
-      hasPlayerSprite: Boolean(combat.playerSprite),
-      hasEnemySprite: Boolean(combat.enemySprite),
-      helpText: combat.helpText?.text ?? '',
+      hasPlayerSprite: Boolean(heavyCombat.playerSprite),
+      hasEnemySprite: Boolean(heavyCombat.enemySprite),
+      helpText: heavyCombat.helpText?.text ?? '',
     };
   });
 
