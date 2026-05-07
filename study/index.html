@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playtest Study — Data Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Playtest Study Results</h1>
+    <p class="subtitle">n = 10 participants &nbsp;·&nbsp; Spring 2026 &nbsp;·&nbsp; RPG prototype</p>
+  </header>
+
+  <div id="stats"></div>
+
+  <main id="charts">
+    <div class="chart-card" id="chart-time"></div>
+    <div class="chart-card" id="chart-combat"></div>
+    <div class="chart-card" id="chart-npc"></div>
+    <div class="chart-card" id="chart-corr"></div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="viz.js"></script>
+</body>
+</html>

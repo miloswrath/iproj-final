@@ -1,0 +1,124 @@
+:root {
+  --bg: #f0f4f8;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+  --radius: 12px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 36px 44px;
+  min-height: 100vh;
+}
+
+header { margin-bottom: 28px; }
+
+h1 {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-top: 5px;
+}
+
+/* ── Stats strip ─────────────────────────── */
+#stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.stat-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ── Chart grid ──────────────────────────── */
+#charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.chart-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px 20px 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.chart-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+/* ── D3 shared styles ────────────────────── */
+.axis text            { font-size: 11px; fill: #94a3b8; }
+.axis .domain         { stroke: #e2e8f0; }
+.axis .tick line      { stroke: #e2e8f0; }
+.grid line            { stroke: #f1f5f9; stroke-width: 1; }
+.axis-label           { font-size: 11px; fill: #94a3b8; }
+.legend-text          { font-size: 11px; fill: #64748b; dominant-baseline: middle; }
+.legend-title         { font-size: 10px; fill: #94a3b8; font-weight: 500; }
+.bar-val              { font-size: 10px; fill: #94a3b8; dominant-baseline: middle; }
+.corr-val             { font-size: 11px; }
+.row-label            { font-size: 11px; fill: #64748b; dominant-baseline: middle; }
+.col-label            { font-size: 11px; fill: #64748b; }
+
+.regression {
+  stroke: #6366f1;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  opacity: 0.6;
+  fill: none;
+}
+
+/* ── Tooltip ─────────────────────────────── */
+.tooltip {
+  position: absolute;
+  background: rgba(15, 23, 42, 0.93);
+  color: #e2e8f0;
+  padding: 9px 13px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.65;
+  pointer-events: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,.28);
+  z-index: 999;
+  transition: opacity 0.1s;
+}
