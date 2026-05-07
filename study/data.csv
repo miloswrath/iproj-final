@@ -1,0 +1,11 @@
+participant_id,completion_time_minutes,quests_completed,enjoyment_rating_1_5,npc_dialogues_completed,combat_encounters_won_perc,would_play_again_1_5
+P01,11.2,3,5,6,0.8,5
+P02,13.8,2,4,4,0.2,4
+P03,9.6,3,5,7,0.3,5
+P04,15.1,2,3,3,0.5,3
+P05,10.4,3,4,5,0.7,4
+P06,12.7,2,4,4,1.0,4
+P07,8.9,3,5,8,0.0,5
+P08,14.3,1,3,2,0.45,3
+P09,11.8,2,4,5,0.5,4
+P10,10.9,3,5,6,0.6,5
